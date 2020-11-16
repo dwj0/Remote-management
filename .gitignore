@@ -1,0 +1,30 @@
+# windows
+Thumbs.db
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.dll
+
+# Executables
+*.exe
+*.out
+*.app
+
+# VC2010
+Release/
+Debug/
+*.sdf
+*.opensdf
+*.aps
