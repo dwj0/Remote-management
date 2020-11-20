@@ -15,7 +15,6 @@ Thumbs.db
 *.pch
 
 # Compiled Dynamic libraries
-*.dll
 
 # Executables
 *.exe
@@ -28,3 +27,6 @@ Debug/
 *.sdf
 *.opensdf
 *.aps
+
+# 数据库文件
+*.db

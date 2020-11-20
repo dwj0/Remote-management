@@ -70,6 +70,12 @@
     <None Include="res\mstsc_101.ico">
       <Filter>资源文件</Filter>
     </None>
+    <None Include="res\NodeClose.ico">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\NodeOpen.ico">
+      <Filter>资源文件</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="RemoteMan.h">
@@ -87,6 +93,15 @@
     <ClInclude Include="Resource.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="SysSetDlg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="AddGroupDlg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="AddHostDlg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RemoteMan.cpp">
@@ -98,6 +113,15 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="SysSetDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="AddGroupDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="AddHostDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RemoteMan.rc">
@@ -106,5 +130,8 @@
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="res\XPStyle.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="SQLITE3.lib" />
   </ItemGroup>
 </Project>

@@ -7,10 +7,53 @@
 #include "RemoteManDlg.h"
 #include "afxdialogex.h"
 
+#pragma comment(lib, "Crypt32.lib")
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
+char const InitTabSqlStr[] = "\
+BEGIN TRANSACTION;\r\n\
+CREATE TABLE ConfigTab(\r\n\
+id INTEGER primary key not null,\r\n\
+Password char(64),\r\n\
+ParentShowHost boolean,\r\n\
+RadminPath char(256),\r\n\
+SSHPath char(256),\r\n\
+MstscConsole boolean,\r\n\
+MstscUseDrive boolean,\r\n\
+MstscLocalDrive char(24),\r\n\
+MstscRemoteAudio boolean,\r\n\
+MstscColor int,\r\n\
+MstscWinpos int,\r\n\
+MstscDeskImg boolean,\r\n\
+MstscFontSmooth boolean,\r\n\
+MstscThemes boolean,\r\n\
+RadminCtrlMode int,\r\n\
+RadminFullScreen boolean,\r\n\
+RadminColor int\r\n\
+);\r\n\
+\r\n\
+CREATE TABLE GroupTab(\r\n\
+id INTEGER primary key AUTOINCREMENT,\r\n\
+Name char(64) not null,\r\n\
+ParentId int not null\r\n\
+);\r\n\
+\r\n\
+CREATE TABLE HostTab(\r\n\
+id INTEGER primary key AUTOINCREMENT,\r\n\
+Name char(64) not null,\r\n\
+ParentId int  not null,\r\n\
+CtrlMode int  not null,\r\n\
+HostAddrer char(64) not null,\r\n\
+HostPort int not null,\r\n\
+Account char(20) not null,\r\n\
+Password char(24) not null,\r\n\
+HostReadme char(256)\r\n\
+);\r\n\
+COMMIT;\r\n\
+";
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
@@ -42,31 +85,192 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
+char *CryptRDPPassword(char const *Password, char *OutPassword)
+{
+	DATA_BLOB DataIn ;
+	DATA_BLOB DataOut ;
+	// mstsc.exe中使用的是unicode,所以必须做宽字符转换
+	DWORD n=0;
+	BYTE wPassword[64];
+	while (*Password)
+	{
+		wPassword[n++]=*Password++;
+		wPassword[n++]=0;
+	}
+	wPassword[n]=0;
+
+	DataIn . pbData = wPassword ;
+	DataIn . cbData = n ;
+	if ( CryptProtectData ( &DataIn , L"psw" , // A description string
+		//to be included with the
+		// encrypted data.
+		NULL , // Optional entropy not used.
+		NULL , // Reserved.
+		NULL , // Pass NULL for the
+		// prompt structure.
+		CRYPTPROTECT_UI_FORBIDDEN,
+		&DataOut ) )
+	{
+		int len=0;
+		for (n=0; n<DataOut.cbData; n++)
+		{
+			len+=sprintf_s(OutPassword+len,512-len,"%02X",DataOut.pbData[n]);
+		}
+		return OutPassword;
+	}
+	return "";
+}
 
 // CRemoteManDlg 对话框
+static int ReadTreeCallback(void* para, int n_column, char** column_value, char** column_name)
+{
+	CRemoteManDlg *pDlg=(CRemoteManDlg*)para;
+	HTREEITEM hLast = pDlg->hNowTreeItem;
+	if (column_value[1]!=NULL)
+	{
+		HTREEITEM hItem = pDlg->m_Tree.InsertItem(column_value[1],0,1,pDlg->hNowTreeItem);
+		pDlg->m_Tree.SetItemData(hItem,atoi(column_value[0]));
+		pDlg->EnumTreeData(hItem, atoi(column_value[0]));
+		pDlg->hNowTreeItem = hLast;
+	}
+	return 0;
+}
 
+void CRemoteManDlg::EnumTreeData(HTREEITEM hItem, int ParentNode)
+{
+	char sqlstr[64];
+	sprintf_s(sqlstr,sizeof(sqlstr),"select * from GroupTab where ParentId=%d;",ParentNode);
+	TRACE("%s\r\n",sqlstr);
+	hNowTreeItem = hItem;
+	int rc = sqlite3_exec(m_pDB, sqlstr, ReadTreeCallback, this, NULL);
+}
 
+static int ReadConfigCallback(void* para, int n_column, char** column_value, char** column_name)
+{
+	CONFIG_STRUCT *pConfig = (CONFIG_STRUCT*)para;
 
+	for (int i=0; i<n_column; i++)
+	{
+		if (column_value[i]==NULL) column_value[i]="";
+		if (strcmp(column_name[i],"Password")==0)
+			strcpy_s(pConfig->SysPassword,column_value[i]);
+		else if (strcmp(column_name[i],"ParentShowHost")==0)
+			pConfig->ParentShowHost=column_value[i][0]!='0' && column_value[i][0]!=0;
+		else if (strcmp(column_name[i],"RadminPath")==0)
+			strcpy_s(pConfig->RadminPath,column_value[i]);
+		else if (strcmp(column_name[i],"SSHPath")==0)
+			strcpy_s(pConfig->SSHPath,column_value[i]);
+		else if (strcmp(column_name[i],"MstscConsole")==0)
+			pConfig->MstscConsole=column_value[i][0]!='0' && column_value[i][0]!=0;
+		else if (strcmp(column_name[i],"MstscUseDrive")==0)
+			pConfig->MstscUseDrive=column_value[i][0]!='0' && column_value[i][0]!=0;
+		else if (strcmp(column_name[i],"MstscLocalDrive")==0)
+			strcpy_s(pConfig->MstscLocalDrive,column_value[i]);
+		else if (strcmp(column_name[i],"MstscRemoteAudio")==0)
+			pConfig->MstscRemoteAudio =column_value[i][0]!='0' && column_value[i][0]!=0;
+		else if (strcmp(column_name[i],"MstscColor")==0)
+			pConfig->MstscColor =atoi(column_value[i]);
+		else if (strcmp(column_name[i],"MstscWinpos")==0)
+			pConfig->MstscWinpos =atoi(column_value[i]);
+		else if (strcmp(column_name[i],"MstscDeskImg")==0)
+			pConfig->MstscDeskImg =column_value[i][0]!='0' && column_value[i][0]!=0;
+		else if (strcmp(column_name[i],"MstscFontSmooth")==0)
+			pConfig->MstscFontSmooth =column_value[i][0]!='0' && column_value[i][0]!=0;
+		else if (strcmp(column_name[i],"MstscThemes")==0)
+			pConfig->MstscThemes =column_value[i][0]!='0' && column_value[i][0]!=0;
+		else if (strcmp(column_name[i],"RadminCtrlMode")==0)
+			pConfig->RadminCtrlMode =atoi(column_value[i]);
+		else if (strcmp(column_name[i],"RadminFullScreen")==0)
+			pConfig->RadminFullScreen =column_value[i][0]!='0' && column_value[i][0]!=0;
+		else if (strcmp(column_name[i],"RadminColor")==0)
+			pConfig->RadminColor =atoi(column_value[i]);
+	}
+	pConfig->ReadFlag=true;
+
+	return 0;
+}
+
+static int ReadIntCallback(void* para, int n_column, char** column_value, char** column_name)
+{
+	*(int*)para = atoi(column_value[0]);
+	return 0;
+}
+
+bool CRemoteManDlg::OpenUserDb(void)
+{
+	int TabCnt=0;
+	int rc = sqlite3_open("User.db",&m_pDB);
+	if (rc) return false;
+	//检查配置表是否存在
+	char const *sqlstr = "select count(type) from sqlite_master where tbl_name='ConfigTab';";
+	TRACE("%s\r\n",sqlstr);
+	rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &TabCnt, NULL);
+	//表不存在时创建表格
+	if (TabCnt==0)
+		rc=sqlite3_exec(m_pDB,InitTabSqlStr,NULL,NULL,NULL);
+	return rc==0;
+}
 
 CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CRemoteManDlg::IDD, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+//	DeleteFile("User.db");
+	if (!OpenUserDb())
+	{
+		char str[200];
+		sprintf_s(str,sizeof(str),"打开数据库失败：%s",sqlite3_errmsg(m_pDB));
+		AfxMessageBox(str);
+		exit(0);
+	}
+}
+
+CRemoteManDlg::~CRemoteManDlg()
+{
+	char str[MAX_PATH];
+	GetTempPath(sizeof(str),str);
+	strcat_s(str,sizeof(str),"rdp_tmp");
+	DeleteFile(str);
+	sqlite3_close(m_pDB); 
 }
 
 void CRemoteManDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
-	DDX_Control(pDX, IDC_STATIC_PIC, m_Ico);
 	DDX_Control(pDX, IDC_LIST1, m_List);
+	DDX_Control(pDX, IDC_TREE1, m_Tree);
 }
 
 BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
-	ON_BN_CLICKED(IDOK, &CRemoteManDlg::OnBnClickedOk)
 	ON_WM_CTLCOLOR()
+	ON_BN_CLICKED(IDOK, &CRemoteManDlg::OnBnClickedOk)
+	ON_BN_CLICKED(IDC_TOOLER_SET, &CRemoteManDlg::OnToolbarClickedSysSet)
+	ON_BN_CLICKED(ID_MENU_ADDGROUP, &CRemoteManDlg::OnMenuClickedAddGroup)
+	ON_BN_CLICKED(ID_MENU_DELGROUP, &CRemoteManDlg::OnMenuClickedDelGroup)
+	ON_BN_CLICKED(ID_MENU_ADDHOST, &CRemoteManDlg::OnMenuClickedAddHost)
+	ON_BN_CLICKED(ID_MENU_EDITHOST, &CRemoteManDlg::OnMenuClickedEditHost)
+	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedDelHost)
+	ON_BN_CLICKED(ID_MENU_CONNENT, &CRemoteManDlg::OnMenuClickedConnentHost)
+	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
+	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
+	ON_BN_CLICKED(IDC_TOOLER_OPENSSH, &CRemoteManDlg::OnToolbarClickedOpenSSH)
+	ON_NOTIFY(TVN_SELCHANGED, IDC_TREE1, &CRemoteManDlg::OnTvnSelchangedTree1)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_LIST1, &CRemoteManDlg::OnLvnItemchangedList1)
+	ON_MESSAGE(WM_MODIFY_PASSWORD_MESSAGE, &CRemoteManDlg::OnModifyPasswordMessage)
+	ON_BN_CLICKED(IDC_CHECK_MST_CONSOLE, &CRemoteManDlg::OnBnClickedCheckMstConsole)
+	ON_BN_CLICKED(IDC_CHECK_MST_DRIVE, &CRemoteManDlg::OnBnClickedCheckMstDrive)
+	ON_BN_CLICKED(IDC_CHECK_MST_AUDIO, &CRemoteManDlg::OnBnClickedCheckMstAudio)
+	ON_CBN_SELCHANGE(IDC_COMBO_MST_WINPOS, &CRemoteManDlg::OnCbnSelchangeComboMstWinpos)
+	ON_BN_CLICKED(IDC_CHECK_RADMIN_FULLSCREEN, &CRemoteManDlg::OnBnClickedCheckRadminFullscreen)
+	ON_CBN_SELCHANGE(IDC_COMBO_RADMIN_CTRLMODE, &CRemoteManDlg::OnCbnSelchangeComboRadminCtrlmode)
+	ON_MESSAGE(WM_ADDHOST_MESSAGE, &CRemoteManDlg::OnAddHostMessage)
+	ON_NOTIFY(NM_RCLICK, IDC_TREE1, &CRemoteManDlg::OnNMRClickTree1)
+	ON_NOTIFY(NM_RCLICK, IDC_LIST1, &CRemoteManDlg::OnNMRClickList1)
+	ON_NOTIFY(NM_DBLCLK, IDC_LIST1, &CRemoteManDlg::OnNMDblclkList1)
+	ON_COMMAND_RANGE(ID_MENU_FULLCTRL,ID_MENU_CLOSEHOST,&CRemoteManDlg::OnMenuClickedRadminCtrl)
 END_MESSAGE_MAP()
 
 
@@ -75,7 +279,6 @@ void CRemoteManDlg::InitToolBar(void)
 {
 	m_ToolbarImageList.Create(32,32,ILC_COLOR24|ILC_MASK,1,1);
 	m_ToolbarImageList.SetBkColor(RGB(255,255,255));
-	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_ADDNODE));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_ADDNODE));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_DELNODE));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_PC));
@@ -87,30 +290,25 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_SSH));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_SET));
 
-	UINT array[14]={IDC_TOOLER_ADDROOTGROUP,IDC_TOOLER_ADDGROUP,IDC_TOOLER_DELGROUP,ID_SEPARATOR,
-					IDC_TOOLER_NEW,IDC_TOOLER_EDIT,IDC_TOOLER_DEL,ID_SEPARATOR,
-					IDC_TOOLER_OPEN,IDC_TOOLER_MSTSC,IDC_TOOLER_RADMIN,IDC_TOOLER_SSH,ID_SEPARATOR,
+	UINT array[13]={ID_MENU_ADDGROUP,ID_MENU_DELGROUP,ID_SEPARATOR,
+					ID_MENU_ADDHOST,ID_MENU_EDITHOST,ID_MENU_DELHOST,ID_SEPARATOR,
+					ID_MENU_CONNENT,IDC_TOOLER_OPENMSTSC,IDC_TOOLER_OPENRADMIN,IDC_TOOLER_OPENSSH,ID_SEPARATOR,
 					IDC_TOOLER_SET};
 	m_ToolBar.Create(this);
-	m_ToolBar.SetButtons(array,14);
-	m_ToolBar.SetButtonText(0,"添加根分组");
-	m_ToolBar.SetButtonText(1,"添加分组");
-	m_ToolBar.SetButtonText(2,"删除分组");
-
-	m_ToolBar.SetButtonText(4,"添加服务器");
-	m_ToolBar.SetButtonText(5,"编辑服务器");
-	m_ToolBar.SetButtonText(6,"删除服务器");
-
-	m_ToolBar.SetButtonText(8,"连接");
-	m_ToolBar.SetButtonText(9,"远程桌面");
-	m_ToolBar.SetButtonText(10,"Radmin");
-	m_ToolBar.SetButtonText(11,"SSH");
-
-	m_ToolBar.SetButtonText(13,"设置");
+	m_ToolBar.SetButtons(array,13);
+	m_ToolBar.SetButtonText(0,"添加分组");
+	m_ToolBar.SetButtonText(1,"删除分组");
+	m_ToolBar.SetButtonText(3,"添加主机");
+	m_ToolBar.SetButtonText(4,"编辑主机");
+	m_ToolBar.SetButtonText(5,"删除主机");
+	m_ToolBar.SetButtonText(7,"连接");
+	m_ToolBar.SetButtonText(8,"远程桌面");
+	m_ToolBar.SetButtonText(9,"Radmin");
+	m_ToolBar.SetButtonText(10,"SecureCRT");
+	m_ToolBar.SetButtonText(12,"设置");
 
 	m_ToolBar.GetToolBarCtrl().SetImageList(&m_ToolbarImageList);
 	m_ToolBar.SetSizes(CSize(72,56),CSize(20,34));
-	m_ToolBar.EnableToolTips(TRUE);
 
 	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
 }
@@ -146,19 +344,55 @@ BOOL CRemoteManDlg::OnInitDialog()
 
 	// TODO: 在此添加额外的初始化代码
 	HICON hico=(HICON)LoadImage(AfxGetApp()->m_hInstance,MAKEINTRESOURCE(IDI_MSTSC),IMAGE_ICON,64,64,LR_DEFAULTCOLOR);
-	m_Ico.SetIcon(hico);
+	((CStatic*)GetDlgItem(IDC_STATIC_PIC))->SetIcon(hico);
 
 	InitToolBar();
-	SetDlgItemText(IDC_EDIT1,"请添加服务器");
+
+	m_ImageList.Create(24,24,ILC_COLOR24|ILC_MASK,1,1);
+	m_ImageList.SetBkColor(RGB(255,255,255));
+	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_NODE_CLOSE));
+	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_NODE_OPEN));
+	m_ImageList.Add(AfxGetApp()->LoadIcon(IDR_MAINFRAME));
+	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_RADMIN));
+	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_SSH));
+	m_Tree.SetImageList(&m_ImageList,LVSIL_NORMAL);
 
 	m_List.SetExtendedStyle(LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES);
-	m_List.InsertColumn(0,"类型",LVCFMT_LEFT,72);
-	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,160);
-	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,150);
+	m_List.SetImageList(&m_ImageList,LVSIL_SMALL);
+	m_List.InsertColumn(0,"类型",LVCFMT_LEFT,80);
+	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,168);
+	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,145);
 	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,64);
 	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,120);
 
+	//读取参数
+	memset(&SysConfig,0,sizeof(CONFIG_STRUCT));
+	while (1)
+	{
+		char const *sqlstr="select * from ConfigTab where id=0;";
+		TRACE("%s\r\n",sqlstr);
+		int rc = sqlite3_exec(m_pDB, sqlstr, ReadConfigCallback, &SysConfig, NULL);
+		if (SysConfig.ReadFlag) break;
+		sqlstr="insert into ConfigTab values(0, '',true,'','',true,true,'',false,0,0,false, false, true, 0, true, 1);";
+		TRACE("%s\r\n",sqlstr);
+		rc=sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	}
+	((CButton*)GetDlgItem(IDC_CHECK_MST_CONSOLE))->SetCheck(SysConfig.MstscConsole);
+	((CButton*)GetDlgItem(IDC_CHECK_MST_DRIVE))->SetCheck(SysConfig.MstscUseDrive);
+	((CButton*)GetDlgItem(IDC_CHECK_MST_AUDIO))->SetCheck(SysConfig.MstscRemoteAudio);
+	((CComboBox*)GetDlgItem(IDC_COMBO_MST_WINPOS))->SetCurSel(SysConfig.MstscWinpos);
+	((CButton*)GetDlgItem(IDC_CHECK_RADMIN_FULLSCREEN))->SetCheck(SysConfig.RadminFullScreen);
+	((CComboBox*)GetDlgItem(IDC_COMBO_RADMIN_CTRLMODE))->SetCurSel(SysConfig.RadminCtrlMode);
 
+	//读取分组
+	EnumTreeData(TVI_ROOT,0);
+	if (m_Tree.GetCount()==0)
+		SetDlgItemText(IDC_EDIT_README,"请先添加分组.");
+	else
+	{
+		HTREEITEM hTree=m_Tree.GetChildItem(0);
+		m_Tree.SelectItem(hTree);
+	}
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -229,3 +463,748 @@ HBRUSH CRemoteManDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 	// TODO:  在此更改 DC 的任何特性 
 	return hbr;
 }
+
+
+void CRemoteManDlg::OnToolbarClickedSysSet(void)
+{
+	CSysSetDlg Dlg(SysConfig.ParentShowHost, SysConfig.MstscLocalDrive, SysConfig.MstscColor, SysConfig.MstscDeskImg,
+		SysConfig.MstscFontSmooth, SysConfig.MstscThemes, SysConfig.RadminColor, SysConfig.RadminPath, SysConfig.SSHPath);
+	if (Dlg.DoModal()==IDOK)
+	{
+		SysConfig.ParentShowHost=Dlg.m_ParentShowHost!=0;
+		strcpy_s(SysConfig.RadminPath,sizeof(SysConfig.RadminPath),Dlg.m_RadminPath);
+		strcpy_s(SysConfig.SSHPath,sizeof(SysConfig.SSHPath),Dlg.m_SshPath);
+		strcpy_s(SysConfig.MstscLocalDrive,sizeof(SysConfig.MstscLocalDrive),Dlg.m_MstDriveStr);
+		SysConfig.MstscColor=Dlg.m_MstColor;
+		SysConfig.MstscDeskImg=Dlg.m_MstShowDeskImg!=0;
+		SysConfig.MstscFontSmooth=Dlg.m_MstFontSmooth!=0;
+		SysConfig.MstscThemes=Dlg.m_MstThemes!=0;
+		SysConfig.RadminColor=Dlg.m_RadminColor;
+		
+		char sqlstr[1024];
+		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',MstscLocalDrive='%s',"
+											  "MstscColor=%d,MstscDeskImg=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
+			SysConfig.ParentShowHost ? "true":"false",
+			SysConfig.RadminPath,
+			SysConfig.SSHPath,
+			SysConfig.MstscLocalDrive,
+			SysConfig.MstscColor,
+			SysConfig.MstscDeskImg ? "true":"false",
+			SysConfig.MstscFontSmooth ? "true":"false",
+			SysConfig.MstscThemes ? "true":"false",
+			SysConfig.RadminColor
+			);
+		TRACE("%s\r\n",sqlstr);
+		int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	}
+}
+
+void CRemoteManDlg::OnMenuClickedAddGroup(void)
+{
+	CString GroupName;
+	HTREEITEM hItem = m_Tree.GetSelectedItem();
+	if (hItem!=NULL)
+		GroupName=m_Tree.GetItemText(hItem);
+
+	char sqlstr[128];
+	CAddGroupDlg dlg(GroupName);
+	if (dlg.DoModal()==IDOK)
+	{
+		int ParentId=0;
+		if (dlg.m_AddRoot)
+			hItem=TVI_ROOT;
+		else
+			ParentId=m_Tree.GetItemData(hItem);
+		//先判断这个父分组下是否有这个名称的分组存在
+		int GroupCnt=0;
+		sprintf_s(sqlstr,sizeof(sqlstr),"select count() from GroupTab where ParentId=%d and Name='%s';",ParentId,dlg.m_GroupName);
+		TRACE("%s\r\n",sqlstr);		
+		int rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &GroupCnt, NULL);
+		if (GroupCnt>0)
+		{
+			MessageBox("该分组名已经存在","错误",MB_ICONERROR);
+			return;
+		}
+		//添加到数据库
+		sprintf_s(sqlstr,sizeof(sqlstr),"insert into GroupTab values(NULL,'%s',%d);",dlg.m_GroupName,ParentId);
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		//读取这条数据的ID
+		sprintf_s(sqlstr,sizeof(sqlstr),"select id from GroupTab where ParentId=%d and Name='%s';",ParentId,dlg.m_GroupName);
+		TRACE("%s\r\n",sqlstr);
+		int Id=0;
+		rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &Id, NULL);
+		hItem=m_Tree.InsertItem(dlg.m_GroupName,0,1,hItem);
+		m_Tree.SetItemData(hItem,Id);
+		m_Tree.SelectItem(hItem);
+	}
+}
+
+void CRemoteManDlg::EnumChildGroupId(HTREEITEM hItem,CArray<int ,int>&GroupArray)
+{
+	HTREEITEM hChildItem;
+	GroupArray.Add(m_Tree.GetItemData(hItem));
+	//查找子分组
+	hChildItem=m_Tree.GetChildItem(hItem);
+	if (hChildItem==0) return;
+	EnumChildGroupId(hChildItem,GroupArray);
+	//查找兄弟分组
+	while (1)
+	{
+		hChildItem=m_Tree.GetNextSiblingItem(hChildItem);
+		if (hChildItem==0) return;
+		EnumChildGroupId(hChildItem,GroupArray);
+	}
+}
+
+void CRemoteManDlg::OnMenuClickedDelGroup(void)
+{
+	HTREEITEM hItem=m_Tree.GetSelectedItem();
+	if (hItem==0) return;
+	if (MessageBox("删除分组将同时删除子分组及对应主机，确认删除？","注意",MB_OKCANCEL|MB_ICONWARNING)!=IDOK) return;
+	CArray<int ,int>GroupArray;
+	GroupArray.SetSize(0,20);
+	//枚举组ID
+	EnumChildGroupId(hItem,GroupArray);
+	//删除组
+	int sqlstrlen=25+GroupArray.GetSize()*23;
+	char *sqlstr=new char[sqlstrlen];
+	int len=sprintf_s(sqlstr,sqlstrlen,"delete from GroupTab where id=%d",GroupArray[0]);
+	for (int i=1; i<GroupArray.GetSize(); i++)
+	{
+		len+=sprintf_s(sqlstr+len,sqlstrlen-len," or id=%d",GroupArray[i]);
+	}
+	sqlstr[len]=';';
+	sqlstr[len+1]=0;
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	//删除主机
+	len=sprintf_s(sqlstr,sqlstrlen,"delete from HostTab where ParentId=%d",GroupArray[0]);
+	for (int i=1; i<GroupArray.GetSize(); i++)
+	{
+		len+=sprintf_s(sqlstr+len,sqlstrlen-len," or ParentId=%d",GroupArray[i]);
+	}
+	sqlstr[len]=';';
+	sqlstr[len+1]=0;
+	TRACE("%s\r\n",sqlstr);
+	rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	delete sqlstr;
+	//删除树控件节点和列表框
+	SetDlgItemText(IDC_EDIT_README,"");
+	m_List.DeleteAllItems();
+	m_Tree.DeleteItem(hItem);
+}
+
+
+afx_msg LRESULT CRemoteManDlg::OnAddHostMessage(WPARAM wParam, LPARAM lParam)
+{
+	HOST_STRUCT *pHost = (HOST_STRUCT*)wParam;
+	int ParentId=m_Tree.GetItemData(HTREEITEM(lParam));
+
+	char sqlstr[512];
+	//查看该主机名是否存在
+	int HostCnt=0;
+	sprintf_s(sqlstr,sizeof(sqlstr),"select count() from HostTab where ParentId=%d and Name='%s' and CtrlMode=%d;",
+		ParentId, pHost->Name, pHost->CtrlMode);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &HostCnt, NULL);
+	if (HostCnt>0)
+	{
+		MessageBox("该主机名已存在.","错误",MB_ICONERROR);
+		return 1;
+	}
+	//添加到数据库
+	sprintf_s(sqlstr,sizeof(sqlstr),"insert into HostTab values(NULL,'%s',%d,%d,'%s',%d,'%s','%s','%s');",
+		pHost->Name, ParentId, pHost->CtrlMode, pHost->HostAddress, pHost->HostPort, pHost->Account, pHost->Password, pHost->ReadMe);
+	TRACE("%s\r\n",sqlstr);
+	rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	//读取ID
+	int Id=0;
+	sprintf_s(sqlstr,sizeof(sqlstr),"select id from HostTab where ParentId=%d and Name='%s';",ParentId,pHost->Name);
+	TRACE("%s\r\n",sqlstr);
+	rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &Id, NULL);
+	//添加到列表
+	int n=m_List.GetItemCount();
+	m_List.InsertItem(n, CTRL_MODE[pHost->CtrlMode],2+pHost->CtrlMode);
+	m_List.SetItemText(n, 1, pHost->Name);
+	m_List.SetItemText(n, 2, pHost->HostAddress);
+	sprintf_s(sqlstr,sizeof(sqlstr),"%d",pHost->HostPort);
+	m_List.SetItemText(n, 3, sqlstr);
+	m_List.SetItemText(n, 4, pHost->Account);
+	m_List.SetItemData(n,Id);
+
+	return 0;
+}
+
+void CRemoteManDlg::OnMenuClickedAddHost(void)
+{
+	HTREEITEM hItem=m_Tree.GetSelectedItem();
+	if (hItem==NULL || m_Tree.GetCount()==0)
+	{
+		MessageBox("请先添加分组或选择分组.","错误",MB_ICONERROR);
+		return;
+	}
+	CAddHostDlg Dlg(NULL, hItem);
+	Dlg.DoModal();
+}
+
+static int ReadHostCallback(void* para, int n_column, char** column_value, char** column_name)
+{
+	HOST_STRUCT *pHost = (HOST_STRUCT *)para;
+	strcpy_s(pHost->Name,sizeof(pHost->Name),column_value[1]);
+	pHost->CtrlMode=atoi(column_value[3]);
+	strcpy_s(pHost->HostAddress,sizeof(pHost->HostAddress),column_value[4]);
+	pHost->HostPort=atoi(column_value[5]);
+	strcpy_s(pHost->Account,sizeof(pHost->Account),column_value[6]);
+	if (column_value[7]!=NULL)
+		strcpy_s(pHost->Password,sizeof(pHost->Password),column_value[7]);
+	if (column_value[8]!=NULL)
+		strcpy_s(pHost->ReadMe,sizeof(pHost->ReadMe),column_value[8]);
+
+	return 0;
+}
+
+void CRemoteManDlg::OnMenuClickedEditHost(void)
+{
+	if (m_List.GetSelectedCount()!=1) return;
+	int n=m_List.GetSelectionMark();
+	int Id=m_List.GetItemData(n);
+	HOST_STRUCT Host;
+	memset(&Host,0,sizeof(Host));
+
+	char sqlstr[512];
+	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where Id=%d;",Id);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallback, &Host, NULL);
+
+	CAddHostDlg Dlg(&Host, 0);
+	if (Dlg.DoModal()==IDOK)
+	{
+		//更新数据库
+		sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set Name='%s',CtrlMode=%d,HostAddrer='%s',HostPort=%d,Account='%s',"
+										"Password='%s',HostReadme='%s' where id=%d;",
+			Dlg.m_Host.Name, Dlg.m_Host.CtrlMode, Dlg.m_Host.HostAddress, 
+			Dlg.m_Host.HostPort, Dlg.m_Host.Account, Dlg.m_Host.Password, Dlg.m_Host.ReadMe,Id);
+		TRACE("%s\r\n",sqlstr);
+		int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		//更新列表框
+		m_List.SetItem(n,0,LVIF_IMAGE,NULL,2+Dlg.m_Host.CtrlMode,0,0,0);
+		m_List.SetItemText(n,0,CTRL_MODE[Dlg.m_Host.CtrlMode]);
+		m_List.SetItemText(n,1,Dlg.m_Host.Name);
+		m_List.SetItemText(n,2,Dlg.m_Host.HostAddress);
+		sprintf_s(sqlstr,sizeof(sqlstr),"%d",Dlg.m_Host.HostPort);
+		m_List.SetItemText(n,3,sqlstr);
+		m_List.SetItemText(n,4,Dlg.m_Host.Account);
+		SetDlgItemText(IDC_EDIT_README,Dlg.m_Host.ReadMe);
+	}
+	m_List.SetFocus();
+}
+
+
+void CRemoteManDlg::OnMenuClickedDelHost(void)
+{
+	if (m_List.GetSelectedCount()==0) return;
+	int Cnt=m_List.GetItemCount();
+	bool *Flags=new bool[Cnt];
+	int *Ids=new int[Cnt];
+	//列出选择的项和ID
+	memset(Flags,0, sizeof(bool)*Cnt);
+	POSITION  pos=m_List.GetFirstSelectedItemPosition();
+	while (pos!=NULL)
+	{
+		int n=m_List.GetNextSelectedItem(pos);
+		Flags[n]=true;
+		Ids[n]=m_List.GetItemData(n);
+	}
+	//从后开始删除列表
+	for (int i=Cnt-1; i>=0; i--)
+	{
+		if (Flags[i]) m_List.DeleteItem(i);
+	}
+	//删除数据库
+	int sqlstrlen=30+Cnt*17;
+	char *sqlstr=new char[sqlstrlen];
+	int len=sprintf_s(sqlstr,sqlstrlen,"delete from HostTab where");
+	bool bfirst=true;
+	for (int i=0; i<Cnt; i++)
+	{
+		if (!Flags[i]) continue;
+		len+=sprintf_s(sqlstr+len,sqlstrlen-len, bfirst?" id=%d":" or id=%d",Ids[i]);
+		bfirst=false;
+	}
+	sqlstr[len]=';';
+	sqlstr[len+1]=0;
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	//
+	delete Flags;
+	delete Ids;
+	delete sqlstr;
+}
+
+
+void CRemoteManDlg::OnToolbarClickedOpenMstsc(void)
+{
+	char szBuffer[MAX_PATH];
+	SHGetSpecialFolderPath(NULL, szBuffer, CSIDL_SYSTEM, FALSE);
+	strcat_s(szBuffer,MAX_PATH,"\\Mstsc.exe");
+	WinExec(szBuffer,WM_SHOWWINDOW);
+}
+
+
+void CRemoteManDlg::OnToolbarClickedOpenRadmin(void)
+{
+	char const *RadminPath="radmin.exe";			//当路径为空时使用同目录下的radmin.exe
+	if (SysConfig.RadminPath[0]!=0) RadminPath=SysConfig.RadminPath;
+	//查看文件是否存在
+	CFileStatus fstatus;
+	if (strstr(RadminPath,".exe")==NULL || !CFile::GetStatus(RadminPath,fstatus))
+	{
+//		AfxMessageBox("Radmin路径设置错误");
+		return;
+	}
+	WinExec(RadminPath,WM_SHOWWINDOW);
+}
+
+
+void CRemoteManDlg::OnToolbarClickedOpenSSH(void)
+{
+	if (strstr(SysConfig.SSHPath,".exe"))
+		WinExec(SysConfig.SSHPath,WM_SHOWWINDOW);
+}
+
+
+void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
+{
+	char RdpStr[1536],str[512];
+	//连接模式
+	int len=sprintf_s(RdpStr,sizeof(RdpStr),"screen mode id:i:%d\r\n",pConfig->MstscWinpos==0?2:1);
+	//宽高
+	int Width=1024,Height=768;
+	if (pConfig->MstscWinpos!=0)
+	{
+		((CComboBox*)GetDlgItem(IDC_COMBO_MST_WINPOS))->GetLBText(pConfig->MstscWinpos,str);
+		char *p=strchr(str,' ');
+		*p=0;
+		p+=4;
+		Width=atoi(str);
+		Height=atoi(p);
+	}
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"desktopwidth:i:%d\r\ndesktopheight:i:%d\r\n",Width,Height);
+	//颜色位数
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"session bpp:i:%d\r\n",pConfig->MstscColor==0 ? 16:pConfig->MstscColor==1 ? 24:32);
+	//默认数据
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"winposstr:s:0,1,0,0,1024,768\r\n");
+	len+=sizeof("winposstr:s:0,1,0,0,1024,768\r\n")-1;
+	//远程服务器地址
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"full address:s:%s:%d\r\n",pHost->HostAddress,pHost->HostPort);
+	//将数据传输到客户端计算机时是否对数据进行压缩
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"compression:i:1\r\n");
+	len+=sizeof("compression:i:1\r\n")-1;
+	//确定何时将 Windows 键组合应用到桌面连接的远程会话
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"keyboardhook:i:2\r\n");
+	len+=sizeof("keyboardhook:i:2\r\n")-1;
+	//声音设置
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"audiomode:i:%d\r\n",pConfig->MstscRemoteAudio ? 0:2);
+	//剪贴板 
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"redirectclipboard:i:1\r\n");
+	len+=sizeof("redirectclipboard:i:1\r\n")-1;
+	//PnP即插即用设备
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"devicestoredirect:s:\r\n");
+	len+=sizeof("devicestoredirect:s:\r\n")-1;
+	//磁盘驱动器
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"drivestoredirect:s:");
+	len+=sizeof("drivestoredirect:s:")-1;
+	if (pConfig->MstscUseDrive)
+	{
+		char volume[]="C:\\";
+		for (int i=0; pConfig->MstscLocalDrive[i]>='A' && pConfig->MstscLocalDrive[i]<='Z'; i++)
+		{
+			volume[0]=pConfig->MstscLocalDrive[i];
+			GetVolumeInformation(volume,str,16,NULL,NULL,NULL,NULL,0);
+			len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"%s (%c:);",str,pConfig->MstscLocalDrive[i]);
+		}
+	}
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"\r\n");
+	len+=2;
+	//是否自动连接打印机
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"redirectprinters:i:0\r\n");
+	len+=sizeof("redirectprinters:i:0\r\n")-1;
+	//是否自动连接COM串行口
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"redirectcomports:i:0\r\n");
+	len+=sizeof("redirectcomports:i:0\r\n")-1;
+	//是否自动连接智能卡
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"redirectsmartcards:i:0\r\n");
+	len+=sizeof("redirectsmartcards:i:0\r\n")-1;
+	//全屏模式时是否显示连接栏
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"displayconnectionbar:i:1\r\n");
+	len+=sizeof("displayconnectionbar:i:1\r\n")-1;
+	//在断开连接后是否自动尝试重新连接
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"autoreconnection enabled:i:1\r\n");
+	len+=sizeof("autoreconnection enabled:i:1\r\n")-1;
+	//用户名和域
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"username:s:%s\r\ndomain:s:\r\n",pHost->Account);
+	//指定要在远程会话中作为 shell（而不是资源管理器）自动启动的程序
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"alternate shell:s:\r\n");
+	len+=sizeof("alternate shell:s:\r\n")-1;
+	////RDP进行连接时自动启动的应用程序所在的文件夹位置程
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"shell working directory:s:\r\n");
+	len+=sizeof("shell working directory:s:\r\n")-1;
+	//RDP密码加密数据
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"password 51:b:%s\r\n",CryptRDPPassword(pHost->Password,str));
+	//是否禁止显示桌面背景
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"disable wallpaper:i:%d\r\n",pConfig->MstscDeskImg?0:1);
+	//是否禁止主题
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"disable themes:i:%d\r\n",pConfig->MstscThemes?0:1);
+	//是否允许字体平滑
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"allow font smoothing:i:%d\r\n",pConfig->MstscFontSmooth?1:0);
+	//将文件夹拖到新位置时是否显示文件夹内容
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"disable full window drag:i:1\r\n");
+	len+=sizeof("disable full window drag:i:1\r\n")-1;
+	//禁用菜单动画
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"disable menu anims:i:1\r\n");
+	len+=sizeof("disable menu anims:i:1\r\n")-1;
+	//禁用光标设置
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"disable cursor setting:i:0\r\n");
+	len+=sizeof("disable cursor setting:i:0\r\n")-1;
+	//是否将位图缓存在本地计算机上
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"bitmapcachepersistenable:i:1\r\n");
+	len+=sizeof("bitmapcachepersistenable:i:1\r\n")-1;
+	//定义服务器身份验证级别设置
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"authentication level:i:0\r\n");
+	len+=sizeof("authentication level:i:0\r\n")-1;
+	//?
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"prompt for credentials:i:0\r\n");
+	len+=sizeof("prompt for credentials:i:0\r\n")-1;
+	//确定是否保存用户的凭据并将其用于 RD 网关和远程计算机
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"promptcredentialonce:i:1\r\n");
+	len+=sizeof("promptcredentialonce:i:1\r\n")-1;
+
+	//存储到文件
+	GetTempPath(sizeof(str),str);
+	strcat_s(str,sizeof(str),"rdp_tmp");
+//	sprintf_s(str,sizeof(str),"c:\\%s_RDP.rdp",pHost->HostAddress);
+	CFile file;
+	if (!file.Open(str,CFile::modeCreate|CFile::modeWrite|CFile::typeBinary)) return;
+	file.Write(RdpStr,len);
+	file.Close();
+
+	//启动
+	char szBuffer[MAX_PATH];
+	SHGetSpecialFolderPath(NULL, szBuffer, CSIDL_SYSTEM, FALSE);
+	sprintf_s(RdpStr,sizeof(RdpStr),"%s\\Mstsc.exe /%s %s", szBuffer,pConfig->MstscConsole?"console":"admin",str);		//参数
+	WinExec(RdpStr, WM_SHOWWINDOW);
+	TRACE("Rdp文件长度=%d Rdp命令行:%s\r\n",len,RdpStr);
+}
+
+//CtrlMode=-1时，使用配置中的控制模式
+void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int CtrlMode)
+{
+	static const char MODE[][10]={"","/noinput","/file","/shutdown"};
+	static const char COLOUR[][8]={"/8bpp","/16bpp","/24bpp"};
+	char const *RadminPath="radmin.exe";			//当路径为空时使用同目录下的radmin.exe
+	if (pConfig->RadminPath[0]!=0) RadminPath=pConfig->RadminPath;
+	//查看文件是否存在
+	CFileStatus fstatus;
+	if (strstr(RadminPath,".exe")==NULL || !CFile::GetStatus(RadminPath,fstatus))
+	{
+		AfxMessageBox("Radmin路径设置错误");
+		return;
+	}
+
+	if (CtrlMode==-1) CtrlMode=pConfig->RadminCtrlMode;	
+	char str1[100],str2[30];
+	//启动Radmin连接服务器
+	sprintf_s(str1,sizeof(str1),"/connect:%s:%d %s %s",pHost->HostAddress,pHost->HostPort,MODE[CtrlMode],COLOUR[pConfig->RadminColor]);
+	if (pConfig->RadminFullScreen)
+		strcat_s(str1,sizeof(str1)," /fullscreen");
+	TRACE("%s\r\n",str1);
+	ShellExecute(NULL,"open",RadminPath,str1,NULL,SW_SHOW);
+	//窗口名称
+	sprintf_s(str1,sizeof(str1),"Radmin 安全性：%s",pHost->HostAddress);	//Radmin2.2的窗口名称
+	sprintf_s(str2,sizeof(str2),"Radmin 安全性: %s",pHost->HostAddress);	//Radmin3.4的窗口名称
+	//查找Radmin启动窗口
+	HWND hWnd;
+	clock_t t2,t1=clock();
+	for (t2=t1;t2-t1<8000;t2=clock())
+	{
+		Sleep(1);
+		hWnd=FindWindow(NULL,str1);
+		if (hWnd!=NULL)
+			break;
+		hWnd=FindWindow(NULL,str2);
+		if (hWnd!=NULL)
+			break;
+	}
+	if (hWnd==NULL)	return;
+	//填写信息并发送
+	HWND UserWnd=::GetDlgItem(hWnd,0x7ff);
+	HWND PasswordWnd=::GetDlgItem(hWnd,0x800);
+	if (UserWnd!=NULL)
+		::SendMessage(UserWnd,WM_SETTEXT,0,(LPARAM)pHost->Account);
+	if (PasswordWnd!=NULL)
+		::SendMessage(PasswordWnd,WM_SETTEXT,0,(LPARAM)pHost->Password);
+	::PostMessage(hWnd,WM_COMMAND,0x78,0);
+}
+
+void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
+{
+	//查看文件是否存在
+	CFileStatus fstatus;
+	if (strstr(pConfig->SSHPath,".exe")==NULL || !CFile::GetStatus(pConfig->SSHPath,fstatus))
+	{
+		AfxMessageBox("SSH路径设置错误");
+		return;
+	}
+	//连接
+	char str[128];
+	sprintf_s(str,sizeof(str),"%s /ssh2 %s@%s /P %d /PASSWORD %s",
+		pConfig->SSHPath,pHost->Account,pHost->HostAddress,pHost->HostPort,pHost->Password);
+	WinExec(str,WM_SHOWWINDOW);
+}
+
+void CRemoteManDlg::ConnentHost(int RadminCtrlMode)
+{
+	if (m_List.GetSelectedCount()!=1) return;
+	int n=m_List.GetSelectionMark();
+	//获取主机信息
+	char sqlstr[128];
+	HOST_STRUCT Host;
+	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where Id=%d;",m_List.GetItemData(n));
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallback, &Host, NULL);
+	//
+	if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_RDP_NAME)==0)
+		MstscConnent(&Host,&SysConfig);
+	else if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_RADMIN_NAME)==0)
+		RadminConnent(&Host,&SysConfig,RadminCtrlMode);
+	else if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_SSH_NAME)==0)
+		SSHConnent(&Host,&SysConfig);
+	else if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_VNC_NAME)==0)
+	{
+
+	}
+}
+
+void CRemoteManDlg::OnMenuClickedConnentHost(void)
+{
+	ConnentHost(-1);
+}
+
+void CRemoteManDlg::OnMenuClickedRadminCtrl(UINT Id)
+{
+	ConnentHost(Id-ID_MENU_FULLCTRL);
+}
+
+void CRemoteManDlg::OnTvnSelchangedTree1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	m_List.DeleteAllItems();
+	SetDlgItemText(IDC_EDIT_README,"");
+	LoadHostList(m_Tree.GetItemData(pNMTreeView->itemNew.hItem));
+	*pResult = 0;
+}
+
+static int ReadShowHostCallback(void* para, int n_column, char** column_value, char** column_name)
+{
+	CRemoteManDlg *pDlg = (CRemoteManDlg*)para;
+	int n=pDlg->m_List.GetItemCount();
+
+	pDlg->m_List.InsertItem(n,CTRL_MODE[atoi(column_value[3])],2+atoi(column_value[3]));	//控制类型
+	pDlg->m_List.SetItemText(n,1,column_value[1]);					//主机名称
+	pDlg->m_List.SetItemText(n,2,column_value[4]);					//主机地址
+	pDlg->m_List.SetItemText(n,3,column_value[5]);					//端口
+	pDlg->m_List.SetItemText(n,4,column_value[6]);					//帐号
+	pDlg->m_List.SetItemData(n,atoi(column_value[0]));				//ID
+	return 0;
+}
+
+static int ReadChildIdCallback(void* para, int n_column, char** column_value, char** column_name)
+{
+	CRemoteManDlg *pDlg = (CRemoteManDlg*)para;
+	pDlg->LoadHostList(atoi(column_value[0]));
+	return 0;
+}
+
+void CRemoteManDlg::LoadHostList(int Node)
+{
+	int rc;
+	char sqlstr[64];
+	//载入自身主机表
+	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where ParentId=%d;",Node);
+	TRACE("%s\r\n",sqlstr);
+	rc = sqlite3_exec(m_pDB, sqlstr, ReadShowHostCallback, this, NULL);
+	//载入子节点主机表
+	if (SysConfig.ParentShowHost)
+	{
+		sprintf_s(sqlstr,sizeof(sqlstr),"select id from GroupTab where ParentId=%d;",Node);
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, ReadChildIdCallback, this, NULL);
+	}
+}
+
+static int ReadStrCallback(void* para, int n_column, char** column_value, char** column_name)
+{
+	if (column_value[0]!=NULL)
+		strcpy_s((char*)para,256,column_value[0]);
+	return 0;
+}
+
+void CRemoteManDlg::OnLvnItemchangedList1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	if (pNMLV->uNewState==0) return;
+	int n=m_List.GetSelectedCount();
+	if (n!=1) 
+	{
+		SetDlgItemText(IDC_EDIT_README,"");
+		return;
+	}
+	int Id=m_List.GetItemData(pNMLV->iItem);
+
+	char sqlstr[64], Readme[256]={0};
+	sprintf_s(sqlstr,sizeof(sqlstr),"select HostReadme from HostTab where id=%d;",Id);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, ReadStrCallback, Readme, NULL);
+	SetDlgItemText(IDC_EDIT_README,Readme);
+	
+	*pResult = 0;
+}
+
+afx_msg LRESULT CRemoteManDlg::OnModifyPasswordMessage(WPARAM wParam, LPARAM lParam)
+{
+	char const *Src=(char*)wParam;
+	char const *New=(char*)lParam;
+
+	if (strcmp(Src,SysConfig.SysPassword)!=0)
+		return LRESULT("原密码错误.");
+
+	char sqlstr[128];
+	strcpy_s(SysConfig.SysPassword,sizeof(SysConfig.SysPassword),New);
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set Password='%s' where id=0;",SysConfig.SysPassword);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+
+	return LRESULT("密码修改成功.");
+}
+
+void CRemoteManDlg::OnBnClickedCheckMstConsole()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	SysConfig.MstscConsole=((CButton*)GetDlgItem(IDC_CHECK_MST_CONSOLE))->GetCheck()!=0;
+
+	char sqlstr[128];
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set MstscConsole=%s where id=0;",SysConfig.MstscConsole?"true":"false");
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+}
+
+void CRemoteManDlg::OnBnClickedCheckMstDrive()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	SysConfig.MstscUseDrive=((CButton*)GetDlgItem(IDC_CHECK_MST_DRIVE))->GetCheck()!=0;
+
+	char sqlstr[128];
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set MstscUseDrive=%s where id=0;",SysConfig.MstscUseDrive?"true":"false");
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+}
+
+void CRemoteManDlg::OnBnClickedCheckMstAudio()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	SysConfig.MstscRemoteAudio=((CButton*)GetDlgItem(IDC_CHECK_MST_AUDIO))->GetCheck()!=0;
+
+	char sqlstr[128];
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set MstscRemoteAudio=%s where id=0;",SysConfig.MstscRemoteAudio?"true":"false");
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+}
+
+void CRemoteManDlg::OnCbnSelchangeComboMstWinpos()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	SysConfig.MstscWinpos=((CComboBox*)GetDlgItem(IDC_COMBO_MST_WINPOS))->GetCurSel();
+
+	char sqlstr[128];
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set MstscWinpos=%d where id=0;",SysConfig.MstscWinpos);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+}
+
+void CRemoteManDlg::OnBnClickedCheckRadminFullscreen()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	SysConfig.RadminFullScreen=((CButton*)GetDlgItem(IDC_CHECK_RADMIN_FULLSCREEN))->GetCheck()!=0;
+
+	char sqlstr[128];
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set RadminFullScreen=%s where id=0;",SysConfig.RadminFullScreen?"true":"false");
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+}
+
+
+void CRemoteManDlg::OnCbnSelchangeComboRadminCtrlmode()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	SysConfig.RadminCtrlMode=((CComboBox*)GetDlgItem(IDC_COMBO_RADMIN_CTRLMODE))->GetCurSel();
+
+	char sqlstr[128];
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set RadminCtrlMode=%d where id=0;",SysConfig.RadminCtrlMode);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+}
+
+
+void CRemoteManDlg::OnNMRClickTree1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CMenu Menu;
+	Menu.LoadMenu(IDR_MENU_RCLICK);
+	CMenu *pSubMenu=Menu.GetSubMenu(m_Tree.GetSelectedItem()==NULL ? 0:1);
+	CPoint point;
+	GetCursorPos(&point);
+	pSubMenu->TrackPopupMenu(TPM_LEFTALIGN|TPM_LEFTBUTTON|TPM_VERTICAL,point.x,point.y,this);
+
+	*pResult = 0;
+}
+
+
+void CRemoteManDlg::OnNMRClickList1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	int Index=0;
+	int SelCnt=m_List.GetSelectedCount();
+
+	if (SelCnt==0)
+		Index=2;
+	else if (SelCnt==1)
+	{
+		char str[12];
+		m_List.GetItemText(pNMItemActivate->iItem,0,str,10);
+		Index=strcmp(str,CTRL_MODE_RADMIN_NAME)==0 ? 4:3;
+	}
+	else
+		Index=5;
+
+	CMenu Menu;
+	Menu.LoadMenu(IDR_MENU_RCLICK);
+	CMenu *pSubMenu=Menu.GetSubMenu(Index);
+	CPoint point;
+	GetCursorPos(&point);
+	pSubMenu->TrackPopupMenu(TPM_LEFTALIGN|TPM_LEFTBUTTON|TPM_VERTICAL,point.x,point.y,this);
+
+	*pResult = 0;
+}
+
+void CRemoteManDlg::OnNMDblclkList1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	OnMenuClickedConnentHost();
+	*pResult = 0;
+}
+

@@ -105,6 +105,8 @@
     <None Include="res\icon3.ico" />
     <None Include="res\Inter.ico" />
     <None Include="res\mstsc_101.ico" />
+    <None Include="res\NodeClose.ico" />
+    <None Include="res\NodeOpen.ico" />
     <None Include="res\Ok.ico" />
     <None Include="res\Open.ico" />
     <None Include="res\PC.ico" />
@@ -115,25 +117,34 @@
     <None Include="res\SSH.ico" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AddGroupDlg.h" />
+    <ClInclude Include="AddHostDlg.h" />
     <ClInclude Include="RemoteMan.h" />
     <ClInclude Include="RemoteManDlg.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="SysSetDlg.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AddGroupDlg.cpp" />
+    <ClCompile Include="AddHostDlg.cpp" />
     <ClCompile Include="RemoteMan.cpp" />
     <ClCompile Include="RemoteManDlg.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="SysSetDlg.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RemoteMan.rc" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="res\XPStyle.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="SQLITE3.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
