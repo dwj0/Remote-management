@@ -49,7 +49,10 @@ public:
 
 
 // й╣ож
-protected:
+protected:    
+	int m_nListDragIndex; 
+	CImageList *m_pDragImage;
+
 	HICON			m_hIcon;
 	CToolBar		m_ToolBar;
 	CImageList		m_ImageList,m_ToolbarImageList;
@@ -105,4 +108,9 @@ public:
 	afx_msg void OnNMDblclkList1(NMHDR *pNMHDR, LRESULT *pResult);
 	void OnMenuClickedRadminCtrl(UINT Id);
 	void ConnentHost(int RadminCtrlMode);
+	afx_msg void OnLvnBegindragList1(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	void OnMenuClickedRenameGroup(void);
+	afx_msg void OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult);
 };

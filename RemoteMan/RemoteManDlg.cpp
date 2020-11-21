@@ -223,6 +223,9 @@ CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 		AfxMessageBox(str);
 		exit(0);
 	}
+
+	m_nListDragIndex=-1; 
+	m_pDragImage=NULL;
 }
 
 CRemoteManDlg::~CRemoteManDlg()
@@ -254,24 +257,31 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_EDITHOST, &CRemoteManDlg::OnMenuClickedEditHost)
 	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedDelHost)
 	ON_BN_CLICKED(ID_MENU_CONNENT, &CRemoteManDlg::OnMenuClickedConnentHost)
+	ON_BN_CLICKED(ID_MENU_RENAMEGROUP, &CRemoteManDlg::OnMenuClickedRenameGroup)
 	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
 	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
 	ON_BN_CLICKED(IDC_TOOLER_OPENSSH, &CRemoteManDlg::OnToolbarClickedOpenSSH)
-	ON_NOTIFY(TVN_SELCHANGED, IDC_TREE1, &CRemoteManDlg::OnTvnSelchangedTree1)
-	ON_NOTIFY(LVN_ITEMCHANGED, IDC_LIST1, &CRemoteManDlg::OnLvnItemchangedList1)
-	ON_MESSAGE(WM_MODIFY_PASSWORD_MESSAGE, &CRemoteManDlg::OnModifyPasswordMessage)
 	ON_BN_CLICKED(IDC_CHECK_MST_CONSOLE, &CRemoteManDlg::OnBnClickedCheckMstConsole)
 	ON_BN_CLICKED(IDC_CHECK_MST_DRIVE, &CRemoteManDlg::OnBnClickedCheckMstDrive)
 	ON_BN_CLICKED(IDC_CHECK_MST_AUDIO, &CRemoteManDlg::OnBnClickedCheckMstAudio)
-	ON_CBN_SELCHANGE(IDC_COMBO_MST_WINPOS, &CRemoteManDlg::OnCbnSelchangeComboMstWinpos)
 	ON_BN_CLICKED(IDC_CHECK_RADMIN_FULLSCREEN, &CRemoteManDlg::OnBnClickedCheckRadminFullscreen)
+	ON_CBN_SELCHANGE(IDC_COMBO_MST_WINPOS, &CRemoteManDlg::OnCbnSelchangeComboMstWinpos)
 	ON_CBN_SELCHANGE(IDC_COMBO_RADMIN_CTRLMODE, &CRemoteManDlg::OnCbnSelchangeComboRadminCtrlmode)
 	ON_MESSAGE(WM_ADDHOST_MESSAGE, &CRemoteManDlg::OnAddHostMessage)
+	ON_MESSAGE(WM_MODIFY_PASSWORD_MESSAGE, &CRemoteManDlg::OnModifyPasswordMessage)
 	ON_NOTIFY(NM_RCLICK, IDC_TREE1, &CRemoteManDlg::OnNMRClickTree1)
 	ON_NOTIFY(NM_RCLICK, IDC_LIST1, &CRemoteManDlg::OnNMRClickList1)
 	ON_NOTIFY(NM_DBLCLK, IDC_LIST1, &CRemoteManDlg::OnNMDblclkList1)
+	ON_NOTIFY(TVN_SELCHANGED, IDC_TREE1, &CRemoteManDlg::OnTvnSelchangedTree1)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_LIST1, &CRemoteManDlg::OnLvnItemchangedList1)
+	ON_NOTIFY(LVN_BEGINDRAG, IDC_LIST1, &CRemoteManDlg::OnLvnBegindragList1)
+	ON_NOTIFY(TVN_ENDLABELEDIT, IDC_TREE1, &CRemoteManDlg::OnTvnEndlabeleditTree1)
 	ON_COMMAND_RANGE(ID_MENU_FULLCTRL,ID_MENU_CLOSEHOST,&CRemoteManDlg::OnMenuClickedRadminCtrl)
+	ON_WM_MOUSEMOVE()
+	ON_WM_LBUTTONUP()
 END_MESSAGE_MAP()
+
+//TVN_ENDLABELEDIT 删除这行会不能设置断点，不信你试试
 
 
 // CRemoteManDlg 消息处理程序
@@ -703,41 +713,32 @@ void CRemoteManDlg::OnMenuClickedEditHost(void)
 
 void CRemoteManDlg::OnMenuClickedDelHost(void)
 {
-	if (m_List.GetSelectedCount()==0) return;
-	int Cnt=m_List.GetItemCount();
-	bool *Flags=new bool[Cnt];
+	int Cnt=m_List.GetSelectedCount();
+	if (Cnt==0) return;
+	int *Sels=new int[Cnt];
 	int *Ids=new int[Cnt];
 	//列出选择的项和ID
-	memset(Flags,0, sizeof(bool)*Cnt);
 	POSITION  pos=m_List.GetFirstSelectedItemPosition();
-	while (pos!=NULL)
+	for (int i=0; pos!=NULL && i<Cnt; i++)
 	{
-		int n=m_List.GetNextSelectedItem(pos);
-		Flags[n]=true;
-		Ids[n]=m_List.GetItemData(n);
+		Sels[i]=m_List.GetNextSelectedItem(pos);
+		Ids[i]=m_List.GetItemData(Sels[i]);
 	}
 	//从后开始删除列表
 	for (int i=Cnt-1; i>=0; i--)
-	{
-		if (Flags[i]) m_List.DeleteItem(i);
-	}
+		m_List.DeleteItem(Sels[i]);
 	//删除数据库
 	int sqlstrlen=30+Cnt*17;
 	char *sqlstr=new char[sqlstrlen];
-	int len=sprintf_s(sqlstr,sqlstrlen,"delete from HostTab where");
-	bool bfirst=true;
+	int len=sprintf_s(sqlstr,sqlstrlen,"delete from HostTab where ");
 	for (int i=0; i<Cnt; i++)
-	{
-		if (!Flags[i]) continue;
-		len+=sprintf_s(sqlstr+len,sqlstrlen-len, bfirst?" id=%d":" or id=%d",Ids[i]);
-		bfirst=false;
-	}
+		len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d":" or id=%d",Ids[i]);
 	sqlstr[len]=';';
 	sqlstr[len+1]=0;
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
 	//
-	delete Flags;
+	delete Sels;
 	delete Ids;
 	delete sqlstr;
 }
@@ -996,6 +997,35 @@ void CRemoteManDlg::OnMenuClickedRadminCtrl(UINT Id)
 	ConnentHost(Id-ID_MENU_FULLCTRL);
 }
 
+void CRemoteManDlg::OnMenuClickedRenameGroup(void)
+{
+	HTREEITEM nItem=m_Tree.GetSelectedItem();
+	if (nItem==NULL)
+		return;
+	m_Tree.EditLabel(nItem);
+}
+
+void CRemoteManDlg::OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMTVDISPINFO pTVDispInfo = reinterpret_cast<LPNMTVDISPINFO>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	CString Name=pTVDispInfo->item.pszText;
+	Name.Trim();
+	if (Name.GetLength()==0 || Name.GetLength()>=64 || pTVDispInfo->item.mask==0)
+	{
+		*pResult = 0;
+		return;
+	}
+
+	char sqlstr[128];
+	int Id=m_Tree.GetItemData(pTVDispInfo->item.hItem);
+	sprintf_s(sqlstr,sizeof(sqlstr),"update GroupTab set Name='%s' where Id=%d", Name, Id);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+
+	*pResult = 1;
+}
+
 void CRemoteManDlg::OnTvnSelchangedTree1(NMHDR *pNMHDR, LRESULT *pResult)
 {
 	LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
@@ -1207,4 +1237,91 @@ void CRemoteManDlg::OnNMDblclkList1(NMHDR *pNMHDR, LRESULT *pResult)
 	OnMenuClickedConnentHost();
 	*pResult = 0;
 }
+
+
+void CRemoteManDlg::OnLvnBegindragList1(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	m_nListDragIndex = pNMLV->iItem;
+	POINT pt={8,8};
+	m_pDragImage=m_List.CreateDragImage(m_nListDragIndex,&pt);
+	if (m_pDragImage==NULL)
+	{
+		m_nListDragIndex = -1; 
+		return ; 
+	}
+	m_pDragImage->BeginDrag(0,CPoint(8,8));
+	m_pDragImage->DragEnter(GetDesktopWindow(), pNMLV->ptAction);
+	SetCapture();
+	*pResult = 0;
+}
+
+
+void CRemoteManDlg::OnMouseMove(UINT nFlags, CPoint point)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+	if (m_nListDragIndex!=-1)
+	{     
+		CPoint pt(point); 
+		ClientToScreen(&pt); 
+		m_pDragImage->DragMove(pt); 
+		m_pDragImage->DragShowNolock(false); 
+		m_pDragImage->DragShowNolock(true);
+	} 
+	CDialogEx::OnMouseMove(nFlags, point);
+}
+
+
+void CRemoteManDlg::OnLButtonUp(UINT nFlags, CPoint point)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+	if (m_nListDragIndex==-1) 
+	{
+		CDialogEx::OnLButtonUp(nFlags, point);
+		return;
+	}
+	//释放资源
+	ReleaseCapture(); 
+	m_pDragImage->DragLeave(GetDesktopWindow()); 
+	m_pDragImage->EndDrag(); 
+	delete m_pDragImage; 
+	m_nListDragIndex=-1;
+	//判断拖入处是否是树控件的标签处
+	CPoint pt(point); 
+	ClientToScreen(&pt); 
+	CWnd *pWnd = WindowFromPoint(pt); 
+	if (pWnd!=&m_Tree) return;
+	m_Tree.ScreenToClient(&pt);
+	HTREEITEM hItem=m_Tree.HitTest(pt, &nFlags); //用于获取拖入处的Item
+	if (hItem == NULL)  return;
+
+	//列出选择的项和ID
+	int Cnt=m_List.GetSelectedCount();
+	if (Cnt==0) return;
+	int *Ids=new int[Cnt];
+	POSITION pos=m_List.GetFirstSelectedItemPosition();
+	for (int i=0; pos!=NULL && i<Cnt; i++)
+	{
+		int n=m_List.GetNextSelectedItem(pos);
+		Ids[i]=m_List.GetItemData(n);
+	}
+	//更新数据库
+	int ParentId = m_Tree.GetItemData(hItem);
+	int sqlstrlen=44+17*Cnt;
+	char *sqlstr=new char[44+17*Cnt];
+	int len=sprintf_s(sqlstr,sqlstrlen,"update HostTab set ParentId=%d where ",ParentId);
+	for (int i=0; i<Cnt; i++)
+		len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d" : " or id=%d",Ids[i]);
+	sqlstr[len++]=';';
+	sqlstr[len]=0;
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	//
+	delete Ids;
+	delete sqlstr;
+	//重新选择树hItem
+	m_Tree.SelectItem(hItem);
+}
+
 
