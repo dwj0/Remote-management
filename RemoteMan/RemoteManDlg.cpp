@@ -821,7 +821,10 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"winposstr:s:0,1,0,0,1024,768\r\n");
 	len+=sizeof("winposstr:s:0,1,0,0,1024,768\r\n")-1;
 	//远程服务器地址
-	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"full address:s:%s:%d\r\n",pHost->HostAddress,pHost->HostPort);
+	if (pHost->HostPort==3389)
+		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"full address:s:%s\r\n",pHost->HostAddress);
+	else
+		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"full address:s:%s:%d\r\n",pHost->HostAddress,pHost->HostPort);
 	//将数据传输到客户端计算机时是否对数据进行压缩
 	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"compression:i:1\r\n");
 	len+=sizeof("compression:i:1\r\n")-1;
@@ -942,7 +945,10 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 	if (CtrlMode==-1) CtrlMode=pConfig->RadminCtrlMode;	
 	char str1[100],str2[30];
 	//启动Radmin连接服务器
-	sprintf_s(str1,sizeof(str1),"/connect:%s:%d %s %s",pHost->HostAddress,pHost->HostPort,MODE[CtrlMode],COLOUR[pConfig->RadminColor]);
+	if (pHost->HostPort==4899)
+		sprintf_s(str1,sizeof(str1),"/connect:%s %s %s",pHost->HostAddress,MODE[CtrlMode],COLOUR[pConfig->RadminColor]);
+	else
+		sprintf_s(str1,sizeof(str1),"/connect:%s:%d %s %s",pHost->HostAddress,pHost->HostPort,MODE[CtrlMode],COLOUR[pConfig->RadminColor]);
 	if (pConfig->RadminFullScreen)
 		strcat_s(str1,sizeof(str1)," /fullscreen");
 	TRACE("%s\r\n",str1);
@@ -985,8 +991,16 @@ void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 	}
 	//连接
 	char str[128];
-	sprintf_s(str,sizeof(str),"%s /ssh2 %s@%s /P %d /PASSWORD %s",
-		pConfig->SSHPath,pHost->Account,pHost->HostAddress,pHost->HostPort,pHost->Password);
+	if (pHost->HostPort==22)
+	{
+		sprintf_s(str,sizeof(str),"%s /ssh2 %s@%s /PASSWORD %s",
+			pConfig->SSHPath,pHost->Account,pHost->HostAddress,pHost->Password);
+	}
+	else
+	{
+		sprintf_s(str,sizeof(str),"%s /ssh2 %s@%s /P %d /PASSWORD %s",
+			pConfig->SSHPath,pHost->Account,pHost->HostAddress,pHost->HostPort,pHost->Password);
+	}
 	WinExec(str,WM_SHOWWINDOW);
 }
 
