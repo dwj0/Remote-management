@@ -102,6 +102,12 @@
     <ClInclude Include="AddHostDlg.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="InputPasswordDlg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Aes.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RemoteMan.cpp">
@@ -120,6 +126,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="AddHostDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="InputPasswordDlg.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Aes.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

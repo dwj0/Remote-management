@@ -11,7 +11,7 @@
 #include "AddHostDlg.h"
 
 struct CONFIG_STRUCT{
-	char SysPassword[64];				//系统密码，使用MD5保存
+	char SysPassword[66];				//系统密码，使用AES保存最大31字节密码
 	bool ParentShowHost;				//父分组是否显示子分组的主机
 	char RadminPath[256];				//RADMIN路径，如果为空，则为同目录下的radmin.exe
 	char SSHPath[256];					//SSH路径，如果为空，则为同目录下的SecureCRT.exe
@@ -27,7 +27,6 @@ struct CONFIG_STRUCT{
 	int  RadminCtrlMode;				//RADMIN控制模式
 	bool RadminFullScreen;				//RADMIN使用全屏控制
 	int  RadminColor;					//RADMIN颜色
-	bool ReadFlag;						//已读取标记
 };
 
 
@@ -39,7 +38,6 @@ enum {IDC_TOOLER_OPENRADMIN=10001,IDC_TOOLER_OPENMSTSC, IDC_TOOLER_OPENSSH, IDC_
 // 构造
 public:
 	CRemoteManDlg(CWnd* pParent = NULL);	// 标准构造函数
-	virtual ~CRemoteManDlg();
 
 // 对话框数据
 	enum { IDD = IDD_REMOTEMAN_DIALOG };
@@ -113,4 +111,5 @@ public:
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	void OnMenuClickedRenameGroup(void);
 	afx_msg void OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult);
+	void ListAddHost(HOST_STRUCT const * pHost, int Id);
 };

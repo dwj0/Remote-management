@@ -5,6 +5,9 @@
 #include "stdafx.h"
 #include "RemoteMan.h"
 #include "RemoteManDlg.h"
+#include "InputPasswordDlg.h"
+#include "Aes.h"
+
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -68,7 +71,20 @@ BOOL CRemoteManApp::InitInstance()
 	// 例如修改为公司或组织名
 	SetRegistryKey(_T("应用程序向导生成的本地应用程序"));
 
-	CRemoteManDlg dlg;
+	CRemoteManDlg dlg;			//在这里打开了数据库并读取了参数
+	//输入开机密码
+	if (dlg.SysConfig.SysPassword[0]!=0)
+	{
+		char str[66];
+		CInputPasswordDlg pswdlg;
+		if (pswdlg.DoModal()!=IDOK) return FALSE;
+		if (strcmp(dlg.SysConfig.SysPassword, AesEnCodeToStr((char const*)pswdlg.m_Password,pswdlg.m_Password.GetLength(),str,AES_KEY))!=0)
+		{
+			AfxMessageBox("密码错误");
+			return FALSE;
+		}
+	}
+
 	m_pMainWnd = &dlg;
 	INT_PTR nResponse = dlg.DoModal();
 	if (nResponse == IDOK)

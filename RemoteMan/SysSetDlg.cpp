@@ -96,9 +96,9 @@ void CSysSetDlg::OnBnClickedBtnChangePassword()
 	int n0=GetDlgItemText(IDC_EDIT_SRCPSAAWORD,Src,sizeof(Src)-1);
 	int n1=GetDlgItemText(IDC_EDIT_NEWPASSWORD,New,sizeof(New)-1);
 	GetDlgItemText(IDC_EDIT_ACKPASSWORD,Ack,sizeof(Ack)-1);
-	if (n1>16 || strcmp(Ack,New)!=0)
+	if (n1>PASSWORD_MAXLEN || strcmp(Ack,New)!=0)
 	{
-		MessageBox("新密码信息不正确!");
+		MessageBox("新密码信息不正确或密码超过16字节!");
 		return;
 	}
 	char const *Res = (char *)GetParent()->SendMessage(WM_MODIFY_PASSWORD_MESSAGE, WPARAM(Src),LPARAM(New));

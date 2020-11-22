@@ -119,6 +119,8 @@
   <ItemGroup>
     <ClInclude Include="AddGroupDlg.h" />
     <ClInclude Include="AddHostDlg.h" />
+    <ClInclude Include="Aes.h" />
+    <ClInclude Include="InputPasswordDlg.h" />
     <ClInclude Include="RemoteMan.h" />
     <ClInclude Include="RemoteManDlg.h" />
     <ClInclude Include="Resource.h" />
@@ -129,6 +131,8 @@
   <ItemGroup>
     <ClCompile Include="AddGroupDlg.cpp" />
     <ClCompile Include="AddHostDlg.cpp" />
+    <ClCompile Include="Aes.cpp" />
+    <ClCompile Include="InputPasswordDlg.cpp" />
     <ClCompile Include="RemoteMan.cpp" />
     <ClCompile Include="RemoteManDlg.cpp" />
     <ClCompile Include="stdafx.cpp">
