@@ -11,6 +11,7 @@
 #include "AddHostDlg.h"
 
 struct CONFIG_STRUCT{
+	int  GroupLastSelId;				//上次关机时打开的组ID
 	char SysPassword[66];				//系统密码，使用AES保存最大31字节密码
 	bool ParentShowHost;				//父分组是否显示子分组的主机
 	char RadminPath[256];				//RADMIN路径，如果为空，则为同目录下的radmin.exe
@@ -38,6 +39,7 @@ enum {IDC_TOOLER_OPENRADMIN=10001,IDC_TOOLER_OPENMSTSC, IDC_TOOLER_OPENSSH, IDC_
 // 构造
 public:
 	CRemoteManDlg(CWnd* pParent = NULL);	// 标准构造函数
+	virtual ~CRemoteManDlg();
 
 // 对话框数据
 	enum { IDD = IDD_REMOTEMAN_DIALOG };
@@ -71,11 +73,11 @@ public:
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	CListCtrl m_List;
 	void OnToolbarClickedSysSet(void);
-	bool OpenUserDb(void);
+	bool OpenUserDb(char const *DbPath);
 	CTreeCtrl m_Tree;
 	void EnumTreeData(HTREEITEM hItem, int ParentNode);
 	afx_msg void OnTvnSelchangedTree1(NMHDR *pNMHDR, LRESULT *pResult);
-	void LoadHostList(int Node);
+	void LoadHostList(int NodeId);
 	afx_msg void OnLvnItemchangedList1(NMHDR *pNMHDR, LRESULT *pResult);
 protected:
 	afx_msg LRESULT OnModifyPasswordMessage(WPARAM wParam, LPARAM lParam);

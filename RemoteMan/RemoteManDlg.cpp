@@ -18,6 +18,7 @@ char const InitTabSqlStr[] = "\
 BEGIN TRANSACTION;\r\n\
 CREATE TABLE ConfigTab(\r\n\
 id INTEGER primary key not null,\r\n\
+GroupLastSelId int,\r\n\
 Password char(66),\r\n\
 ParentShowHost boolean,\r\n\
 RadminPath char(256),\r\n\
@@ -53,7 +54,7 @@ Account char(20) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into ConfigTab values(0, '',true,'','',true,true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
+insert into ConfigTab values(0, 0,'',true,'','',true,true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
@@ -133,8 +134,10 @@ static int ReadTreeCallback(void* para, int n_column, char** column_value, char*
 	if (column_value[1]!=NULL)
 	{
 		HTREEITEM hItem = pDlg->m_Tree.InsertItem(column_value[1],0,1,pDlg->hNowTreeItem);
-		pDlg->m_Tree.SetItemData(hItem,atoi(column_value[0]));
-		pDlg->EnumTreeData(hItem, atoi(column_value[0]));
+		int id=atoi(column_value[0]);
+		pDlg->m_Tree.SetItemData(hItem,id);
+		pDlg->EnumTreeData(hItem, id);
+		if (id==pDlg->SysConfig.GroupLastSelId) pDlg->m_Tree.SelectItem(hItem);
 		pDlg->hNowTreeItem = hLast;
 	}
 	return 0;
@@ -156,7 +159,9 @@ static int ReadConfigCallback(void* para, int n_column, char** column_value, cha
 	for (int i=0; i<n_column; i++)
 	{
 		if (column_value[i]==NULL) column_value[i]="";
-		if (strcmp(column_name[i],"Password")==0)
+		if (strcmp(column_name[i],"GroupLastSelId")==0)
+			pConfig->GroupLastSelId =atoi(column_value[i]);
+		else if (strcmp(column_name[i],"Password")==0)
 			strcpy_s(pConfig->SysPassword,sizeof(pConfig->SysPassword), column_value[i]);
 		else if (strcmp(column_name[i],"ParentShowHost")==0)
 			pConfig->ParentShowHost=column_value[i][0]!='0' && column_value[i][0]!=0;
@@ -199,10 +204,10 @@ static int ReadIntCallback(void* para, int n_column, char** column_value, char**
 	return 0;
 }
 
-bool CRemoteManDlg::OpenUserDb(void)
+bool CRemoteManDlg::OpenUserDb(char const *DbPath)
 {
 	int TabCnt=0;
-	int rc = sqlite3_open("User.db",&m_pDB);
+	int rc = sqlite3_open(DbPath,&m_pDB);
 	if (rc) return false;
 	//检查配置表是否存在
 	char const *sqlstr = "select count(type) from sqlite_master where tbl_name='ConfigTab';";
@@ -218,7 +223,7 @@ CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CRemoteManDlg::IDD, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
-	if (!OpenUserDb())
+	if (!OpenUserDb("User.db"))
 	{
 		char str[200];
 		sprintf_s(str,sizeof(str),"打开数据库失败：%s",sqlite3_errmsg(m_pDB));
@@ -233,6 +238,17 @@ CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 
 	m_nListDragIndex=-1; 
 	m_pDragImage=NULL;
+}
+
+CRemoteManDlg::~CRemoteManDlg()
+{
+	//更新最后打开的分组
+	char sqlstr[128];
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set GroupLastSelId=%d where id=0;",SysConfig.GroupLastSelId);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+
+	sqlite3_close(m_pDB); 
 }
 
 void CRemoteManDlg::DoDataExchange(CDataExchange* pDX)
@@ -384,11 +400,6 @@ BOOL CRemoteManDlg::OnInitDialog()
 	EnumTreeData(TVI_ROOT,0);
 	if (m_Tree.GetCount()==0)
 		SetDlgItemText(IDC_EDIT_README,"请先添加分组.");
-	else
-	{
-		HTREEITEM hTree=m_Tree.GetChildItem(0);
-		m_Tree.SelectItem(hTree);
-	}
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -1058,7 +1069,8 @@ void CRemoteManDlg::OnTvnSelchangedTree1(NMHDR *pNMHDR, LRESULT *pResult)
 	// TODO: 在此添加控件通知处理程序代码
 	m_List.DeleteAllItems();
 	SetDlgItemText(IDC_EDIT_README,"");
-	LoadHostList(m_Tree.GetItemData(pNMTreeView->itemNew.hItem));
+	SysConfig.GroupLastSelId=m_Tree.GetItemData(pNMTreeView->itemNew.hItem);
+	LoadHostList(SysConfig.GroupLastSelId);
 	*pResult = 0;
 }
 
@@ -1069,18 +1081,18 @@ static int ReadChildIdCallback(void* para, int n_column, char** column_value, ch
 	return 0;
 }
 
-void CRemoteManDlg::LoadHostList(int Node)
+void CRemoteManDlg::LoadHostList(int NodeId)
 {
 	int rc;
 	char sqlstr[64];
 	//载入自身主机表
-	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where ParentId=%d;",Node);
+	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where ParentId=%d;",NodeId);
 	TRACE("%s\r\n",sqlstr);
 	rc = sqlite3_exec(m_pDB, sqlstr, ReadShowHostCallback, this, NULL);
 	//载入子节点主机表
 	if (SysConfig.ParentShowHost)
 	{
-		sprintf_s(sqlstr,sizeof(sqlstr),"select id from GroupTab where ParentId=%d;",Node);
+		sprintf_s(sqlstr,sizeof(sqlstr),"select id from GroupTab where ParentId=%d;",NodeId);
 		TRACE("%s\r\n",sqlstr);
 		rc = sqlite3_exec(m_pDB, sqlstr, ReadChildIdCallback, this, NULL);
 	}
