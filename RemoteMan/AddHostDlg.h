@@ -11,7 +11,7 @@ struct HOST_STRUCT
 	USHORT	HostPort;
 	int		CtrlMode;
 	char	Account[20];
-	char	Password[24];
+	char	Password[66];
 	char	ReadMe[256];
 };
 
@@ -38,4 +38,7 @@ public:
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnCbnSelchangeComboCtrlmode();
 	void SetCtrlModeDefPort(int CtrlMode);
+	afx_msg void OnEnChangeEditPassword();
+	bool IsPasswordChange;
+	CString m_Password;
 };

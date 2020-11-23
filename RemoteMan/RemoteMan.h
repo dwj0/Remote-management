@@ -10,6 +10,7 @@
 
 #include "resource.h"		// Ö÷·ûºÅ
 
+#define PASSWORD_MAXLEN			16
 
 #define CTRL_MODE_RDP_NAME		"RDP"
 #define CTRL_MODE_RADMIN_NAME	"Radmin"

@@ -11,7 +11,8 @@
 #include "AddHostDlg.h"
 
 struct CONFIG_STRUCT{
-	char SysPassword[64];				//系统密码，使用MD5保存
+	int  GroupLastSelId;				//上次关机时打开的组ID
+	char SysPassword[66];				//系统密码，使用AES保存最大31字节密码
 	bool ParentShowHost;				//父分组是否显示子分组的主机
 	char RadminPath[256];				//RADMIN路径，如果为空，则为同目录下的radmin.exe
 	char SSHPath[256];					//SSH路径，如果为空，则为同目录下的SecureCRT.exe
@@ -27,7 +28,6 @@ struct CONFIG_STRUCT{
 	int  RadminCtrlMode;				//RADMIN控制模式
 	bool RadminFullScreen;				//RADMIN使用全屏控制
 	int  RadminColor;					//RADMIN颜色
-	bool ReadFlag;						//已读取标记
 };
 
 
@@ -49,7 +49,10 @@ public:
 
 
 // 实现
-protected:
+protected:    
+	int m_nListDragIndex; 
+	CImageList *m_pDragImage;
+
 	HICON			m_hIcon;
 	CToolBar		m_ToolBar;
 	CImageList		m_ImageList,m_ToolbarImageList;
@@ -70,11 +73,11 @@ public:
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	CListCtrl m_List;
 	void OnToolbarClickedSysSet(void);
-	bool OpenUserDb(void);
+	bool OpenUserDb(char const *DbPath);
 	CTreeCtrl m_Tree;
 	void EnumTreeData(HTREEITEM hItem, int ParentNode);
 	afx_msg void OnTvnSelchangedTree1(NMHDR *pNMHDR, LRESULT *pResult);
-	void LoadHostList(int Node);
+	void LoadHostList(int NodeId);
 	afx_msg void OnLvnItemchangedList1(NMHDR *pNMHDR, LRESULT *pResult);
 protected:
 	afx_msg LRESULT OnModifyPasswordMessage(WPARAM wParam, LPARAM lParam);
@@ -105,4 +108,10 @@ public:
 	afx_msg void OnNMDblclkList1(NMHDR *pNMHDR, LRESULT *pResult);
 	void OnMenuClickedRadminCtrl(UINT Id);
 	void ConnentHost(int RadminCtrlMode);
+	afx_msg void OnLvnBegindragList1(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
+	void OnMenuClickedRenameGroup(void);
+	afx_msg void OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult);
+	void ListAddHost(HOST_STRUCT const * pHost, int Id);
 };
