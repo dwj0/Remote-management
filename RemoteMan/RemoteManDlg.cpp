@@ -387,7 +387,7 @@ BOOL CRemoteManDlg::OnInitDialog()
 	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,168);
 	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,145);
 	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,64);
-	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,120);
+	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,110);
 
 	((CButton*)GetDlgItem(IDC_CHECK_MST_CONSOLE))->SetCheck(SysConfig.MstscConsole);
 	((CButton*)GetDlgItem(IDC_CHECK_MST_DRIVE))->SetCheck(SysConfig.MstscUseDrive);
@@ -870,7 +870,7 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"autoreconnection enabled:i:1\r\n");
 	len+=sizeof("autoreconnection enabled:i:1\r\n")-1;
 	//用户名和域
-	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"username:s:%s\r\ndomain:s:\r\n",pHost->Account);
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"username:s:%s\r\n",pHost->Account);
 	//指定要在远程会话中作为 shell（而不是资源管理器）自动启动的程序
 	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"alternate shell:s:\r\n");
 	len+=sizeof("alternate shell:s:\r\n")-1;
@@ -923,11 +923,10 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	sprintf_s(RdpStr,sizeof(RdpStr),"%s\\Mstsc.exe /%s %s", szBuffer,pConfig->MstscConsole?"console":"admin",str);	//命令行
 	WinExec(RdpStr, WM_SHOWWINDOW);
 	TRACE("Rdp文件长度=%d Rdp命令行:%s\r\n",len,RdpStr);
-	Sleep(2000);
+	Sleep(1000);
 	DeleteFile(str);
 }
 
-//CtrlMode=-1时，使用配置中的控制模式
 void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int CtrlMode)
 {
 	static const char MODE[][10]={"","/noinput","/file","/shutdown"};
@@ -942,7 +941,6 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 		return;
 	}
 
-	if (CtrlMode==-1) CtrlMode=pConfig->RadminCtrlMode;	
 	char str1[100],str2[30];
 	//启动Radmin连接服务器
 	if (pHost->HostPort==4899)
@@ -1040,7 +1038,7 @@ void CRemoteManDlg::ConnentHost(int RadminCtrlMode)
 
 void CRemoteManDlg::OnMenuClickedConnentHost(void)
 {
-	ConnentHost(-1);
+	ConnentHost(SysConfig.RadminCtrlMode);
 }
 
 void CRemoteManDlg::OnMenuClickedRadminCtrl(UINT Id)
