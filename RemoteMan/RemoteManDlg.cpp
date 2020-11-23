@@ -7,6 +7,7 @@
 #include "RemoteManDlg.h"
 #include "afxdialogex.h"
 #include "Aes.h"
+#include "CodeConverter.h"
 
 #pragma comment(lib, "Crypt32.lib")
 
@@ -16,7 +17,7 @@
 
 char const InitTabSqlStr[] = "\
 BEGIN TRANSACTION;\r\n\
-CREATE TABLE ConfigTab(\r\n\
+CREATE TABLE %sConfigTab(\r\n\
 id INTEGER primary key not null,\r\n\
 GroupLastSelId int,\r\n\
 Password char(66),\r\n\
@@ -37,13 +38,13 @@ RadminFullScreen boolean,\r\n\
 RadminColor int\r\n\
 );\r\n\
 \r\n\
-CREATE TABLE GroupTab(\r\n\
+CREATE TABLE %sGroupTab(\r\n\
 id INTEGER primary key AUTOINCREMENT,\r\n\
 Name char(64) not null,\r\n\
 ParentId int not null\r\n\
 );\r\n\
 \r\n\
-CREATE TABLE HostTab(\r\n\
+CREATE TABLE %sHostTab(\r\n\
 id INTEGER primary key AUTOINCREMENT,\r\n\
 Name char(64) not null,\r\n\
 ParentId int  not null,\r\n\
@@ -54,7 +55,7 @@ Account char(20) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into ConfigTab values(0, 0,'',true,'','',true,true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
+insert into %sConfigTab values(0, 0,'',true,'','',true,true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
@@ -215,7 +216,12 @@ bool CRemoteManDlg::OpenUserDb(char const *DbPath)
 	rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &TabCnt, NULL);
 	//表不存在时创建表格
 	if (TabCnt==0)
-		rc=sqlite3_exec(m_pDB,InitTabSqlStr,NULL,NULL,NULL);
+	{
+		char sqlstr[1536];
+		rc=sprintf_s(sqlstr,sizeof(sqlstr),InitTabSqlStr,"","","","");		//插入4个主数据库的名称
+		TRACE("%s\r\n",sqlstr);
+		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+	}
 	return rc==0;
 }
 
@@ -223,7 +229,18 @@ CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CRemoteManDlg::IDD, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
-	if (!OpenUserDb("User.db"))
+	char Path[MAX_PATH];
+	GetModuleFileName(NULL,Path,MAX_PATH);
+	char *p=strrchr(Path,'\\');
+	if (p)
+	{
+		p[1]=0;
+		strcat_s(Path,sizeof(Path),"User.db");
+	}
+	else
+		strcpy_s(Path,sizeof(Path),"User.db");
+
+	if (!OpenUserDb(CodeConverter::AsciiToUtf8(Path).c_str()))
 	{
 		char str[200];
 		sprintf_s(str,sizeof(str),"打开数据库失败：%s",sqlite3_errmsg(m_pDB));
@@ -272,6 +289,8 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedDelHost)
 	ON_BN_CLICKED(ID_MENU_CONNENT, &CRemoteManDlg::OnMenuClickedConnentHost)
 	ON_BN_CLICKED(ID_MENU_RENAMEGROUP, &CRemoteManDlg::OnMenuClickedRenameGroup)
+	ON_BN_CLICKED(ID_MENU_EXPORTGROUP,&CRemoteManDlg::OnMenuClickedExportGroup)
+	ON_BN_CLICKED(ID_MENU_IMPORTGROUP,&CRemoteManDlg::OnMenuClickedImportGroup)
 	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
 	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
 	ON_BN_CLICKED(IDC_TOOLER_OPENSSH, &CRemoteManDlg::OnToolbarClickedOpenSSH)
@@ -555,7 +574,7 @@ void CRemoteManDlg::EnumChildGroupId(HTREEITEM hItem,CArray<int ,int>&GroupArray
 	hChildItem=m_Tree.GetChildItem(hItem);
 	if (hChildItem==0) return;
 	EnumChildGroupId(hChildItem,GroupArray);
-	//查找兄弟分组
+	//查找子分组的兄弟分组
 	while (1)
 	{
 		hChildItem=m_Tree.GetNextSiblingItem(hChildItem);
@@ -1082,32 +1101,28 @@ void CRemoteManDlg::OnTvnSelchangedTree1(NMHDR *pNMHDR, LRESULT *pResult)
 	m_List.DeleteAllItems();
 	SetDlgItemText(IDC_EDIT_README,"");
 	SysConfig.GroupLastSelId=m_Tree.GetItemData(pNMTreeView->itemNew.hItem);
-	LoadHostList(SysConfig.GroupLastSelId);
+	LoadHostList(pNMTreeView->itemNew.hItem);
 	*pResult = 0;
 }
 
-static int ReadChildIdCallback(void* para, int n_column, char** column_value, char** column_name)
-{
-	CRemoteManDlg *pDlg = (CRemoteManDlg*)para;
-	pDlg->LoadHostList(atoi(column_value[0]));
-	return 0;
-}
-
-void CRemoteManDlg::LoadHostList(int NodeId)
+void CRemoteManDlg::LoadHostList(HTREEITEM hItem)
 {
 	int rc;
-	char sqlstr[64];
-	//载入自身主机表
-	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where ParentId=%d;",NodeId);
+	CArray<int ,int>GroupArray;
+	GroupArray.SetSize(0,20);
+	//枚举组ID
+	EnumChildGroupId(hItem,GroupArray);
+	//载入主机表
+	int sqlstrlen=28+GroupArray.GetSize()*23,len;
+	char *sqlstr=new char[sqlstrlen];
+	len=sprintf_s(sqlstr,sqlstrlen,"select * from HostTab where ");
+	for (int i=0; i<GroupArray.GetSize();i++)
+		len+=sprintf_s(sqlstr+len,sqlstrlen-len,i==0 ? "ParentId=%d":" or ParentId=%d",GroupArray[i]);
+	sqlstr[len++]=';';
+	sqlstr[len]=0;
 	TRACE("%s\r\n",sqlstr);
 	rc = sqlite3_exec(m_pDB, sqlstr, ReadShowHostCallback, this, NULL);
-	//载入子节点主机表
-	if (SysConfig.ParentShowHost)
-	{
-		sprintf_s(sqlstr,sizeof(sqlstr),"select id from GroupTab where ParentId=%d;",NodeId);
-		TRACE("%s\r\n",sqlstr);
-		rc = sqlite3_exec(m_pDB, sqlstr, ReadChildIdCallback, this, NULL);
-	}
+	delete sqlstr;
 }
 
 static int ReadStrCallback(void* para, int n_column, char** column_value, char** column_name)
@@ -1363,5 +1378,67 @@ void CRemoteManDlg::OnLButtonUp(UINT nFlags, CPoint point)
 	m_Tree.SelectItem(hItem);
 }
 
+void CRemoteManDlg::OnMenuClickedExportGroup(void)
+{
+	HTREEITEM hItem = m_Tree.GetSelectedItem();
+	if (hItem==NULL) return;
+	CFileDialog fdlg(FALSE,".db","ExportGroup",6,"*.db|*.db||");
+	if (fdlg.DoModal()!=IDOK) return;
+	//附加数据库
+	char sqlstr[1536];
+	sprintf_s(sqlstr,sizeof(sqlstr),"attach database '%s' as 'export';",
+		CodeConverter::AsciiToUtf8((char const*)fdlg.GetPathName()).c_str());
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	if (rc!=0)
+	{
+		MessageBox("导出分组出错.","错误",MB_ICONERROR);
+		return;
+	}
+	//添加表格
+	rc=sprintf_s(sqlstr,sizeof(sqlstr),InitTabSqlStr,"export.","export.","export.","export.");	//要播放4个数据库名称
+	TRACE("%s\r\n",sqlstr);
+	rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+	if (rc!=0)
+	{
+		MessageBox("导出分组出错.","错误",MB_ICONERROR);
+		return;
+	}
+	//枚举组ID	
+	CArray<int ,int>GroupArray;
+	GroupArray.SetSize(0,20);
+	//枚举组ID
+	EnumChildGroupId(hItem,GroupArray);
+	//导出分组
+	int sqlstrlen=58+23*GroupArray.GetSize(),len;
+	char *sqlstr1=new char[sqlstrlen];
+	len=sprintf_s(sqlstr1,sqlstrlen,"insert into export.GroupTab select * from GroupTab where ");
+	for (int i=0; i<GroupArray.GetSize(); i++)
+		len+=sprintf_s(sqlstr1+len,sqlstrlen-len,i==0?"id=%d":" or id=%d",GroupArray[i]);
+	sqlstr1[len++]=';';
+	sqlstr1[len]=0;
+	TRACE("%s\r\n",sqlstr1);
+	rc = sqlite3_exec(m_pDB, sqlstr1, NULL, NULL, NULL);
+	//更改首分组父ID为0
+	sprintf_s(sqlstr,sizeof(sqlstr),"update export.GroupTab set ParentId=0 where Id=%d;",GroupArray[0]);
+	TRACE("%s\r\n",sqlstr);
+	rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	//导出主机
+	len=sprintf_s(sqlstr1,sqlstrlen,"insert into export.HostTab select * from HostTab where ");
+	for (int i=0; i<GroupArray.GetSize(); i++)
+		len+=sprintf_s(sqlstr1+len,sqlstrlen-len,i==0?"ParentId=%d":" or ParentId=%d",GroupArray[i]);
+	sqlstr1[len++]=';';
+	sqlstr1[len]=0;
+	TRACE("%s\r\n",sqlstr1);
+	rc = sqlite3_exec(m_pDB, sqlstr1, NULL, NULL, NULL);
+	//分离数据库
+	strcpy_s(sqlstr,sizeof(sqlstr),"detach database 'export';");
+	TRACE("%s\r\n",sqlstr);
+	rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	//
+	delete sqlstr1;
+}
 
-
+void CRemoteManDlg::OnMenuClickedImportGroup(void)
+{
+}

@@ -77,7 +77,7 @@ public:
 	CTreeCtrl m_Tree;
 	void EnumTreeData(HTREEITEM hItem, int ParentNode);
 	afx_msg void OnTvnSelchangedTree1(NMHDR *pNMHDR, LRESULT *pResult);
-	void LoadHostList(int NodeId);
+	void LoadHostList(HTREEITEM hItem);
 	afx_msg void OnLvnItemchangedList1(NMHDR *pNMHDR, LRESULT *pResult);
 protected:
 	afx_msg LRESULT OnModifyPasswordMessage(WPARAM wParam, LPARAM lParam);
@@ -114,4 +114,6 @@ public:
 	void OnMenuClickedRenameGroup(void);
 	afx_msg void OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult);
 	void ListAddHost(HOST_STRUCT const * pHost, int Id);
+	void OnMenuClickedExportGroup(void);
+	void OnMenuClickedImportGroup(void);
 };
