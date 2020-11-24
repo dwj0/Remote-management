@@ -13,7 +13,7 @@
 IMPLEMENT_DYNAMIC(CSysSetDlg, CDialogEx)
 
 CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,BOOL MstShowDeskImg,BOOL MstFontSmooth,
-			BOOL MstThemes,int RadminColor,char const *RadminPath,char const *SshPath,CWnd* pParent/*=NULL*/)
+			BOOL MstThemes,int RadminColor,char const *RadminPath,char const *SshPath, char const *VNCPath, int TimeOut, CWnd* pParent/*=NULL*/)
 	: CDialogEx(CSysSetDlg::IDD, pParent)
 	, m_ParentShowHost(ParentShowHost)
 	, m_MstDriveStr(MstDriveStr)
@@ -24,6 +24,8 @@ CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,
 	, m_RadminColor(RadminColor)
 	, m_RadminPath(RadminPath)
 	, m_SshPath(SshPath)
+	, m_VNCPath(VNCPath)
+	, m_TimeOut(TimeOut)
 	, m_SrcPassword("******")
 {
 
@@ -45,13 +47,15 @@ void CSysSetDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_RADMIN_PATH, m_RadminPath);
 	DDX_Text(pDX, IDC_EDIT_SSH_PATH, m_SshPath);
 	DDX_Text(pDX, IDC_EDIT_SRCPSAAWORD, m_SrcPassword);
+	DDX_Text(pDX, IDC_EDIT_TIMEOUT, m_TimeOut);
+	DDX_Text(pDX, IDC_EDIT_VNC_PATH, m_VNCPath);
 }
 
 
 BEGIN_MESSAGE_MAP(CSysSetDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_CHANGE_PASSWORD, &CSysSetDlg::OnBnClickedBtnChangePassword)
 	ON_BN_CLICKED(IDOK, &CSysSetDlg::OnBnClickedOk)
-	ON_COMMAND_RANGE(IDC_BTN_SSH_PATH,IDC_BTN_RADMIN_PATH,&CSysSetDlg::OnBnClickedSelPath)
+	ON_COMMAND_RANGE(IDC_BTN_SSH_PATH,IDC_BTN_VNC_PATH,&CSysSetDlg::OnBnClickedSelPath)
 END_MESSAGE_MAP()
 
 

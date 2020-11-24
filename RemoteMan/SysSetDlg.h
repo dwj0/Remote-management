@@ -19,6 +19,8 @@ public:
 				int  RadminColor,
 				char const *RadminPath,
 				char const *SshPath,
+				char const *VNCPath,
+				int TimeOut,
 				CWnd* pParent = NULL);   // 标准构造函数
 	virtual ~CSysSetDlg();
 
@@ -41,8 +43,10 @@ public:
 	CString m_RadminPath;
 	CString m_SshPath;
 	CString m_SrcPassword;
+	int m_TimeOut;
 	afx_msg void OnBnClickedBtnChangePassword();
 	afx_msg void OnBnClickedOk();
 	virtual BOOL OnInitDialog();
 	void OnBnClickedSelPath(UINT Id);
+	CString m_VNCPath;
 };

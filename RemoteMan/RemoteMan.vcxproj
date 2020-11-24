@@ -102,6 +102,7 @@
     <None Include="res\Err.ico" />
     <None Include="res\Find.ico" />
     <None Include="res\icon1.ico" />
+    <None Include="res\icon2.ico" />
     <None Include="res\icon3.ico" />
     <None Include="res\Inter.ico" />
     <None Include="res\mstsc_101.ico" />
@@ -115,6 +116,7 @@
     <None Include="res\RemoteMan.rc2" />
     <None Include="res\SET.ico" />
     <None Include="res\SSH.ico" />
+    <None Include="res\VNC.ico" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AddGroupDlg.h" />

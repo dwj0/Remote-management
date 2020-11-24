@@ -25,6 +25,8 @@ Password char(66),\r\n\
 ParentShowHost boolean,\r\n\
 RadminPath char(256),\r\n\
 SSHPath char(256),\r\n\
+VNCPath char(256),\r\n\
+CheckOnlineTimeOut int,\r\n\
 MstscConsole boolean,\r\n\
 MstscUseDrive boolean,\r\n\
 MstscLocalDrive char(24),\r\n\
@@ -56,7 +58,7 @@ Account char(20) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into %sConfigTab values(0, 0,'',true,'','',true,true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
+insert into %sConfigTab values(0, 0,'',true,'','','',500,true,true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
@@ -163,6 +165,7 @@ void CRemoteManDlg::EnumTreeData(HTREEITEM hItem, int ParentNode)
 static int ReadConfigCallback(void* para, int n_column, char** column_value, char** column_name)
 {
 	CONFIG_STRUCT *pConfig = (CONFIG_STRUCT*)para;
+	pConfig->CheckOnlineTimeOut=-1;
 
 	for (int i=0; i<n_column; i++)
 	{
@@ -177,6 +180,10 @@ static int ReadConfigCallback(void* para, int n_column, char** column_value, cha
 			strcpy_s(pConfig->RadminPath,sizeof(pConfig->RadminPath),column_value[i]);
 		else if (strcmp(column_name[i],"SSHPath")==0)
 			strcpy_s(pConfig->SSHPath,sizeof(pConfig->SSHPath),column_value[i]);
+		else if (strcmp(column_name[i],"VNCPath")==0)
+			strcpy_s(pConfig->VNCPath,sizeof(pConfig->VNCPath),column_value[i]);
+		else if (strcmp(column_name[i],"CheckOnlineTimeOut")==0)
+			pConfig->CheckOnlineTimeOut =atoi(column_value[i]);
 		else if (strcmp(column_name[i],"MstscConsole")==0)
 			pConfig->MstscConsole=column_value[i][0]!='0' && column_value[i][0]!=0;
 		else if (strcmp(column_name[i],"MstscUseDrive")==0)
@@ -259,6 +266,14 @@ CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 	char const *sqlstr="select * from ConfigTab where id=0;";
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, sqlstr, ReadConfigCallback, &SysConfig, NULL);
+	//用-1检测有没有Timeout列,如果没有，则要添加, 该代码在N个版本后删除
+	if (SysConfig.CheckOnlineTimeOut==-1)
+	{
+		char const *sqlstr="alter table ConfigTab add column CheckOnlineTimeOut int;alter table ConfigTab add column VNCPath char(256);";
+		TRACE("%s\r\n",sqlstr);
+		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+	}
+	if (SysConfig.CheckOnlineTimeOut<=0) SysConfig.CheckOnlineTimeOut=500;
 
 	m_nListDragIndex=-1; 
 	m_pDragImage=NULL;
@@ -319,6 +334,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_COMMAND_RANGE(ID_MENU_FULLCTRL,ID_MENU_CLOSEHOST,&CRemoteManDlg::OnMenuClickedRadminCtrl)
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONUP()
+	ON_BN_CLICKED(IDC_BTN_CHECK_ONLINE, &CRemoteManDlg::OnBnClickedBtnCheckOnline)
 END_MESSAGE_MAP()
 
 //TVN_ENDLABELEDIT 删除这行会不能设置断点，不信你试试
@@ -405,15 +421,17 @@ BOOL CRemoteManDlg::OnInitDialog()
 	m_ImageList.Add(AfxGetApp()->LoadIcon(IDR_MAINFRAME));
 	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_RADMIN));
 	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_SSH));
+	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_ICON_VNC));
 	m_Tree.SetImageList(&m_ImageList,LVSIL_NORMAL);
 
 	m_List.SetExtendedStyle(LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES);
 	m_List.SetImageList(&m_ImageList,LVSIL_SMALL);
 	m_List.InsertColumn(0,"类型",LVCFMT_LEFT,80);
-	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,168);
-	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,145);
-	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,64);
-	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,110);
+	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,160);
+	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,140);
+	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,54);
+	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,100);
+	m_List.InsertColumn(5,"状态",LVCFMT_LEFT,36);
 
 	((CButton*)GetDlgItem(IDC_CHECK_MST_CONSOLE))->SetCheck(SysConfig.MstscConsole);
 	((CButton*)GetDlgItem(IDC_CHECK_MST_DRIVE))->SetCheck(SysConfig.MstscUseDrive);
@@ -500,26 +518,31 @@ HBRUSH CRemoteManDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 
 void CRemoteManDlg::OnToolbarClickedSysSet(void)
 {
-	CSysSetDlg Dlg(SysConfig.ParentShowHost, SysConfig.MstscLocalDrive, SysConfig.MstscColor, SysConfig.MstscDeskImg,
-		SysConfig.MstscFontSmooth, SysConfig.MstscThemes, SysConfig.RadminColor, SysConfig.RadminPath, SysConfig.SSHPath);
+	CSysSetDlg Dlg(SysConfig.ParentShowHost, SysConfig.MstscLocalDrive, SysConfig.MstscColor, SysConfig.MstscDeskImg,SysConfig.MstscFontSmooth,
+		SysConfig.MstscThemes, SysConfig.RadminColor, SysConfig.RadminPath, SysConfig.SSHPath, SysConfig.VNCPath, SysConfig.CheckOnlineTimeOut);
 	if (Dlg.DoModal()==IDOK)
 	{
 		SysConfig.ParentShowHost=Dlg.m_ParentShowHost!=0;
 		strcpy_s(SysConfig.RadminPath,sizeof(SysConfig.RadminPath),Dlg.m_RadminPath);
 		strcpy_s(SysConfig.SSHPath,sizeof(SysConfig.SSHPath),Dlg.m_SshPath);
+		strcpy_s(SysConfig.VNCPath,sizeof(SysConfig.VNCPath),Dlg.m_VNCPath);
 		strcpy_s(SysConfig.MstscLocalDrive,sizeof(SysConfig.MstscLocalDrive),Dlg.m_MstDriveStr);
 		SysConfig.MstscColor=Dlg.m_MstColor;
 		SysConfig.MstscDeskImg=Dlg.m_MstShowDeskImg!=0;
 		SysConfig.MstscFontSmooth=Dlg.m_MstFontSmooth!=0;
 		SysConfig.MstscThemes=Dlg.m_MstThemes!=0;
 		SysConfig.RadminColor=Dlg.m_RadminColor;
+		SysConfig.CheckOnlineTimeOut=Dlg.m_TimeOut;
 		
 		char sqlstr[1024];
-		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',MstscLocalDrive='%s',"
-											  "MstscColor=%d,MstscDeskImg=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
+		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',VNCPath='%s',"
+											  "CheckOnlineTimeOut=%d,MstscLocalDrive='%s',MstscColor=%d,MstscDeskImg=%s,"
+											  "MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
 			SysConfig.ParentShowHost ? "true":"false",
 			SysConfig.RadminPath,
 			SysConfig.SSHPath,
+			SysConfig.VNCPath,
+			SysConfig.CheckOnlineTimeOut,
 			SysConfig.MstscLocalDrive,
 			SysConfig.MstscColor,
 			SysConfig.MstscDeskImg ? "true":"false",
@@ -1557,3 +1580,64 @@ void CRemoteManDlg::OnMenuClickedImportGroup(void)
 	}
 }
 
+static bool ScanFunction(char const *Address, int Port, int TimeOut)
+{
+	SOCKET m_socket=socket(AF_INET,SOCK_STREAM,0);
+	sockaddr_in serveraddr;
+	serveraddr.sin_family=AF_INET;
+	serveraddr.sin_port=htons(Port);
+	hostent *host=gethostbyname(Address);
+	char *ip=inet_ntoa(*(struct in_addr*)host->h_addr_list[0]);
+	serveraddr.sin_addr.S_un.S_addr=inet_addr(ip);
+	if (serveraddr.sin_addr.S_un.S_addr==INADDR_NONE)
+		return FALSE;
+
+	unsigned long ul = 1;
+	int ret = ioctlsocket(m_socket, FIONBIO, (unsigned long*)&ul);
+	if(ret==SOCKET_ERROR) return FALSE;
+
+	connect(m_socket,(sockaddr*)&serveraddr,sizeof(serveraddr));
+
+	struct timeval timeout ;
+	fd_set r;
+	FD_ZERO(&r);
+	FD_SET(m_socket, &r);
+	timeout.tv_sec = 0;				//超时 秒
+	timeout.tv_usec =TimeOut*1000;	//超时 微秒
+	ret = select(0, 0, &r, 0, &timeout);
+	::closesocket(m_socket);
+	return ret>0;
+}
+
+static DWORD CALLBACK ScanOnlineThread(LPVOID lp)
+{
+	CRemoteManDlg *pDlg=(CRemoteManDlg*)lp;
+	for (int i=0; i<pDlg->m_List.GetItemCount(); i++)
+		pDlg->m_List.SetItemText(i,5,"---");
+
+	for (int i=0; i<pDlg->m_List.GetItemCount(); i++)
+	{
+		char Address[64];
+		int Port;
+		pDlg->m_List.GetItemText(i,3,Address,sizeof(Address));
+		Port=atoi(Address);
+		pDlg->m_List.GetItemText(i,2,Address,sizeof(Address));
+		if (ScanFunction(Address,Port,pDlg->SysConfig.CheckOnlineTimeOut))
+			pDlg->m_List.SetItemText(i,5,"√");
+		else
+			pDlg->m_List.SetItemText(i,5,"×");
+	}
+
+	pDlg->m_Tree.EnableWindow(TRUE);
+	return 0;
+}
+
+void CRemoteManDlg::OnBnClickedBtnCheckOnline()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	int Cnt=m_List.GetItemCount();
+	if (Cnt==0) return;
+
+	m_Tree.EnableWindow(FALSE);
+	CreateThread(NULL,0,ScanOnlineThread,this,0,NULL);
+}
