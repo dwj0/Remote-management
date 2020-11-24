@@ -6,6 +6,7 @@
 // CAddHostDlg ¶Ô»°¿ò
 struct HOST_STRUCT 
 {
+	int		Id;
 	char	Name[64];
 	char	HostAddress[64];
 	USHORT	HostPort;

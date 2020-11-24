@@ -120,6 +120,8 @@
     <ClInclude Include="AddGroupDlg.h" />
     <ClInclude Include="AddHostDlg.h" />
     <ClInclude Include="Aes.h" />
+    <ClInclude Include="CodeConverter.h" />
+    <ClInclude Include="FileDialogEx.h" />
     <ClInclude Include="InputPasswordDlg.h" />
     <ClInclude Include="RemoteMan.h" />
     <ClInclude Include="RemoteManDlg.h" />
@@ -132,6 +134,8 @@
     <ClCompile Include="AddGroupDlg.cpp" />
     <ClCompile Include="AddHostDlg.cpp" />
     <ClCompile Include="Aes.cpp" />
+    <ClCompile Include="CodeConverter.cpp" />
+    <ClCompile Include="FileDialogEx.cpp" />
     <ClCompile Include="InputPasswordDlg.cpp" />
     <ClCompile Include="RemoteMan.cpp" />
     <ClCompile Include="RemoteManDlg.cpp" />
