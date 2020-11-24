@@ -30,6 +30,12 @@ struct CONFIG_STRUCT{
 	int  RadminColor;					//RADMIN颜色
 };
 
+struct GROUP_STRUCT 
+{
+	int		Id;
+	char	Name[64];
+	int		Parent;
+};
 
 // CRemoteManDlg 对话框
 class CRemoteManDlg : public CDialogEx
@@ -65,7 +71,6 @@ protected:
 	DECLARE_MESSAGE_MAP()
 
 public:
-	HTREEITEM hNowTreeItem;			//枚举树控件时当前的句柄
 	CONFIG_STRUCT SysConfig;
 	sqlite3	*m_pDB;
 	afx_msg void OnBnClickedOk();
@@ -116,4 +121,5 @@ public:
 	void ListAddHost(HOST_STRUCT const * pHost, int Id);
 	void OnMenuClickedExportGroup(void);
 	void OnMenuClickedImportGroup(void);
+	void ImportGroup(HTREEITEM hItem, int ExportId);
 };
