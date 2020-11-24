@@ -16,7 +16,7 @@
 #define CTRL_MODE_RADMIN_NAME	"Radmin"
 #define CTRL_MODE_SSH_NAME		"SSH"
 #define CTRL_MODE_VNC_NAME		"VNC"
-extern char const CTRL_MODE[3][7];
+extern char const CTRL_MODE[4][7];
 
 // CRemoteManApp:
 // 有关此类的实现，请参阅 RemoteMan.cpp

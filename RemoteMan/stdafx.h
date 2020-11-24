@@ -39,6 +39,7 @@
 #include <afxdlgs.h>
 
 
+#include <afxsock.h>            // MFC Ì×½Ó×ÖÀ©Õ¹
 
 
 

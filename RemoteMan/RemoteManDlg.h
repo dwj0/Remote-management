@@ -16,6 +16,8 @@ struct CONFIG_STRUCT{
 	bool ParentShowHost;				//父分组是否显示子分组的主机
 	char RadminPath[256];				//RADMIN路径，如果为空，则为同目录下的radmin.exe
 	char SSHPath[256];					//SSH路径，如果为空，则为同目录下的SecureCRT.exe
+	char VNCPath[256];					//VNC路径
+	int  CheckOnlineTimeOut;			//在线检测超时时间ms
 	bool MstscConsole;					//远程桌面使用Console连接
 	bool MstscUseDrive;					//是否连接本地分区
 	char MstscLocalDrive[24];			//远程桌面映射本地分区，格式:CDEF
@@ -122,4 +124,5 @@ public:
 	void OnMenuClickedExportGroup(void);
 	void OnMenuClickedImportGroup(void);
 	void ImportGroup(HTREEITEM hItem, int ExportId);
+	afx_msg void OnBnClickedBtnCheckOnline();
 };

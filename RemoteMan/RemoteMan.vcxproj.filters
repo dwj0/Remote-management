@@ -76,6 +76,12 @@
     <None Include="res\NodeOpen.ico">
       <Filter>资源文件</Filter>
     </None>
+    <None Include="res\icon2.ico">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="res\VNC.ico">
+      <Filter>资源文件</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="RemoteMan.h">

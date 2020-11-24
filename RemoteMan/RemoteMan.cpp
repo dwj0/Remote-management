@@ -35,7 +35,7 @@ CRemoteManApp::CRemoteManApp()
 
 // 唯一的一个 CRemoteManApp 对象
 //控制模式名称，更改这个后要同步更改图标顺序
-char const CTRL_MODE[3][7]={CTRL_MODE_RDP_NAME,CTRL_MODE_RADMIN_NAME,CTRL_MODE_SSH_NAME};
+char const CTRL_MODE[4][7]={CTRL_MODE_RDP_NAME,CTRL_MODE_RADMIN_NAME,CTRL_MODE_SSH_NAME,CTRL_MODE_VNC_NAME};
 CRemoteManApp theApp;
 
 
@@ -55,6 +55,11 @@ BOOL CRemoteManApp::InitInstance()
 
 	CWinApp::InitInstance();
 
+	if (!AfxSocketInit())
+	{
+		AfxMessageBox("初始化套接字错误");
+		return FALSE;
+	}
 
 	AfxEnableControlContainer();
 
