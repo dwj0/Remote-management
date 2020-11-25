@@ -11,6 +11,7 @@
 #include "AddHostDlg.h"
 
 struct CONFIG_STRUCT{
+	int  DatabaseVer;
 	int  GroupLastSelId;				//上次关机时打开的组ID
 	char SysPassword[66];				//系统密码，使用AES保存最大31字节密码
 	bool ParentShowHost;				//父分组是否显示子分组的主机
@@ -125,4 +126,6 @@ public:
 	void OnMenuClickedImportGroup(void);
 	void ImportGroup(HTREEITEM hItem, int ExportId);
 	afx_msg void OnBnClickedBtnCheckOnline();
+	afx_msg void OnBnClickedBtnSearch();
+	void DataBaseConversion(int Ver);
 };

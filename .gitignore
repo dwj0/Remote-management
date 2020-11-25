@@ -27,6 +27,7 @@ Debug/
 *.sdf
 *.opensdf
 *.aps
+*.suo
 
 # 数据库文件
 *.db
