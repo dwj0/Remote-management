@@ -8,9 +8,10 @@ struct HOST_STRUCT
 {
 	int		Id;
 	char	Name[64];
+	int		ParentId;
+	int		CtrlMode;
 	char	HostAddress[64];
 	USHORT	HostPort;
-	int		CtrlMode;
 	char	Account[20];
 	char	Password[66];
 	char	ReadMe[256];

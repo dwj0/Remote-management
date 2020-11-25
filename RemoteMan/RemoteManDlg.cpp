@@ -20,9 +20,10 @@ char const InitTabSqlStr[] = "\
 BEGIN TRANSACTION;\r\n\
 CREATE TABLE %sConfigTab(\r\n\
 id INTEGER primary key not null,\r\n\
+DatabaseVer int,\r\n\
 GroupLastSelId int,\r\n\
-Password char(66),\r\n\
 ParentShowHost boolean,\r\n\
+Password char(66),\r\n\
 RadminPath char(256),\r\n\
 SSHPath char(256),\r\n\
 VNCPath char(256),\r\n\
@@ -58,7 +59,7 @@ Account char(20) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into %sConfigTab values(0, 0,'',true,'','','',500,true,true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
+insert into %sConfigTab values(0, 0, 0, true, '', '', '', '', 500, true, true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
@@ -131,7 +132,7 @@ char *CryptRDPPassword(char const *Password, char *OutPassword)
 }
 
 // CRemoteManDlg 对话框
-static int ReadGroupCallBack(void* para, int n_column, char** column_value, char** column_name)
+static int ReadGroupCallBack_Ascii(void* para, int n_column, char** column_value, char** column_name)
 {
 	if (column_value[1]!=NULL)
 	{
@@ -141,6 +142,69 @@ static int ReadGroupCallBack(void* para, int n_column, char** column_value, char
 		strcpy_s(g.Name,sizeof(g.Name),column_value[1]);
 		pGroupArray->Add(g);
 	}
+	return 0;
+}
+
+static int ReadGroupCallBack(void* para, int n_column, char** column_value, char** column_name)
+{
+	if (column_value[1]!=NULL)
+	{
+		CArray<GROUP_STRUCT ,GROUP_STRUCT&> *pGroupArray=(CArray<GROUP_STRUCT ,GROUP_STRUCT&>*)para;
+		GROUP_STRUCT g;
+		g.Id=atoi(column_value[0]);
+		strcpy_s(g.Name,sizeof(g.Name),CodeConverter::Utf8ToAscii(column_value[1]).c_str());
+		pGroupArray->Add(g);
+	}
+	return 0;
+}
+
+static int ReadHostCallBack_Ascii(void* para, int n_column, char** column_value, char** column_name)
+{
+	CArray<HOST_STRUCT,HOST_STRUCT&>*pHostArray=(CArray<HOST_STRUCT,HOST_STRUCT&>*)para;
+
+	HOST_STRUCT Host;
+	memset(&Host,0,sizeof(Host));
+	Host.Id=atoi(column_value[0]);										//Id
+	strcpy_s(Host.Name,sizeof(Host.Name),column_value[1]);				//主机名称
+	Host.CtrlMode=atoi(column_value[3]);								//控制类型
+	strcpy_s(Host.HostAddress,sizeof(Host.HostAddress),column_value[4]);//主机地址
+	Host.HostPort=atoi(column_value[5]);								//端口
+	strcpy_s(Host.Account,sizeof(Host.Account),column_value[6]);		//帐号
+	if (column_value[7]!=NULL)											//密码
+		strcpy_s(Host.Password,sizeof(Host.Password),column_value[7]);
+	if (column_value[8]!=NULL)											//说明
+		strcpy_s(Host.ReadMe,sizeof(Host.ReadMe),column_value[8]);
+	pHostArray->Add(Host);
+	return 0;
+}
+
+static int ReadHostCallBack(void* para, int n_column, char** column_value, char** column_name)
+{
+	CArray<HOST_STRUCT,HOST_STRUCT&>*pHostArray=(CArray<HOST_STRUCT,HOST_STRUCT&>*)para;
+
+	HOST_STRUCT Host;
+	memset(&Host,0,sizeof(Host));
+	//Id
+	Host.Id=atoi(column_value[0]);																	
+	//主机名称
+	strcpy_s(Host.Name,sizeof(Host.Name),CodeConverter::Utf8ToAscii(column_value[1]).c_str());	
+	//父ID
+	Host.ParentId=atoi(column_value[2]);	
+	//控制类型
+	Host.CtrlMode=atoi(column_value[3]);	
+	//主机地址
+	strcpy_s(Host.HostAddress,sizeof(Host.HostAddress),CodeConverter::Utf8ToAscii(column_value[4]).c_str());	
+	//端口
+	Host.HostPort=atoi(column_value[5]);		
+	//帐号
+	strcpy_s(Host.Account,sizeof(Host.Account),CodeConverter::Utf8ToAscii(column_value[6]).c_str());
+	//密码
+	if (column_value[7]!=NULL)																		
+		strcpy_s(Host.Password,sizeof(Host.Password),column_value[7]);
+	//说明
+	if (column_value[8]!=NULL)																		
+		strcpy_s(Host.ReadMe,sizeof(Host.ReadMe),CodeConverter::Utf8ToAscii(column_value[8]).c_str());
+	pHostArray->Add(Host);
 	return 0;
 }
 
@@ -165,12 +229,14 @@ void CRemoteManDlg::EnumTreeData(HTREEITEM hItem, int ParentNode)
 static int ReadConfigCallback(void* para, int n_column, char** column_value, char** column_name)
 {
 	CONFIG_STRUCT *pConfig = (CONFIG_STRUCT*)para;
-	pConfig->CheckOnlineTimeOut=-1;
+	pConfig->DatabaseVer=-1;
 
 	for (int i=0; i<n_column; i++)
 	{
 		if (column_value[i]==NULL) column_value[i]="";
-		if (strcmp(column_name[i],"GroupLastSelId")==0)
+		if (strcmp(column_name[i],"DatabaseVer")==0)
+			pConfig->DatabaseVer =atoi(column_value[i]);
+		else if (strcmp(column_name[i],"GroupLastSelId")==0)
 			pConfig->GroupLastSelId =atoi(column_value[i]);
 		else if (strcmp(column_name[i],"Password")==0)
 			strcpy_s(pConfig->SysPassword,sizeof(pConfig->SysPassword), column_value[i]);
@@ -209,6 +275,13 @@ static int ReadConfigCallback(void* para, int n_column, char** column_value, cha
 		else if (strcmp(column_name[i],"RadminColor")==0)
 			pConfig->RadminColor =atoi(column_value[i]);
 	}
+	//如果DatabaseVer!=-1时，表明是新的数据库版本，要对数据进行UTF8-ASCII转换
+	if (pConfig->DatabaseVer!=-1)
+	{
+		strcpy_s(pConfig->RadminPath,sizeof(pConfig->RadminPath),CodeConverter::Utf8ToAscii(pConfig->RadminPath).c_str());
+		strcpy_s(pConfig->SSHPath,sizeof(pConfig->SSHPath),CodeConverter::Utf8ToAscii(pConfig->SSHPath).c_str());
+		strcpy_s(pConfig->VNCPath,sizeof(pConfig->VNCPath),CodeConverter::Utf8ToAscii(pConfig->VNCPath).c_str());
+	}
 
 	return 0;
 }
@@ -239,6 +312,57 @@ bool CRemoteManDlg::OpenUserDb(char const *DbPath)
 	return rc==0;
 }
 
+void CRemoteManDlg::DataBaseConversion(int Ver)
+{
+	//当DatabaseVer=-1时，表明这个字段不存在，要添加，并同时添加VNCPath列和CheckOnlineTimeOut列。 另外，之前数据库保存的是GB2312编码，要转换成UTF8格式
+	if (SysConfig.DatabaseVer==-1)
+	{
+		if (AfxMessageBox("将对数据库进行Ascii到UTF8的编码转换\r\n转换后数据库不能用于旧版软件",MB_OKCANCEL)!=IDOK)
+			exit(0);
+		//添加列
+		char sqlstr[1024]="alter table ConfigTab add column DatabaseVer int;"
+			"alter table ConfigTab add column CheckOnlineTimeOut int;"
+			"alter table ConfigTab add column VNCPath char(256);";
+		TRACE("%s\r\n",sqlstr);
+		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+		strcpy_s(sqlstr,sizeof(sqlstr),"update ConfigTab set DatabaseVer=0 where id=0;");
+		TRACE("%s\r\n",sqlstr);
+		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+		//转换ConfigTab的编码
+		rc=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set RadminPath='%s',SSHPath='%s',VNCPath='%s' where id=0;",
+			SysConfig.RadminPath, SysConfig.SSHPath, SysConfig.VNCPath);
+		TRACE("%s\r\n",sqlstr);
+		rc=sqlite3_exec(m_pDB,CodeConverter::AsciiToUtf8(sqlstr).c_str(),NULL,NULL,NULL);
+		//转换GroupTab的编码 
+		CArray<GROUP_STRUCT,GROUP_STRUCT&>GroupArray;
+		GroupArray.SetSize(0,20);
+		strcpy_s(sqlstr,sizeof(sqlstr),"select * from GroupTab;");
+		TRACE("%s\r\n",sqlstr);
+		rc=sqlite3_exec(m_pDB,sqlstr,ReadGroupCallBack_Ascii,&GroupArray,NULL);
+		for (int i=0; i<GroupArray.GetSize(); i++)
+		{
+			GROUP_STRUCT g=GroupArray[i];
+			rc=sprintf_s(sqlstr,sizeof(sqlstr),"update GroupTab set Name='%s' where id=%d;",g.Name,g.Id);
+			TRACE("%s\r\n",sqlstr);
+			rc=sqlite3_exec(m_pDB,CodeConverter::AsciiToUtf8(sqlstr).c_str(),NULL,NULL,NULL);
+		}
+		//转换HostTab的编码 
+		CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
+		HostArray.SetSize(0,20);
+		strcpy_s(sqlstr,sizeof(sqlstr),"select * from HostTab;");
+		TRACE("%s\r\n",sqlstr);
+		rc=sqlite3_exec(m_pDB,sqlstr,ReadHostCallBack_Ascii,&HostArray,NULL);
+		for (int i=0; i<HostArray.GetSize(); i++)
+		{
+			HOST_STRUCT h=HostArray[i];
+			rc=sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set Name='%s',Account='%s',HostReadme='%s' where id=%d;",
+				h.Name, h.Account, h.ReadMe,h.Id);
+			TRACE("%s\r\n",sqlstr);
+			rc=sqlite3_exec(m_pDB,CodeConverter::AsciiToUtf8(sqlstr).c_str(),NULL,NULL,NULL);
+		}
+	}
+}
+
 CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CRemoteManDlg::IDD, pParent)
 {
@@ -266,13 +390,8 @@ CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 	char const *sqlstr="select * from ConfigTab where id=0;";
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, sqlstr, ReadConfigCallback, &SysConfig, NULL);
-	//用-1检测有没有Timeout列,如果没有，则要添加, 该代码在N个版本后删除
-	if (SysConfig.CheckOnlineTimeOut==-1)
-	{
-		char const *sqlstr="alter table ConfigTab add column CheckOnlineTimeOut int;alter table ConfigTab add column VNCPath char(256);";
-		TRACE("%s\r\n",sqlstr);
-		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
-	}
+	//数据库版本转换
+	DataBaseConversion(SysConfig.DatabaseVer);
 	if (SysConfig.CheckOnlineTimeOut<=0) SysConfig.CheckOnlineTimeOut=500;
 
 	m_nListDragIndex=-1; 
@@ -335,6 +454,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONUP()
 	ON_BN_CLICKED(IDC_BTN_CHECK_ONLINE, &CRemoteManDlg::OnBnClickedBtnCheckOnline)
+	ON_BN_CLICKED(IDC_BTN_SEARCH, &CRemoteManDlg::OnBnClickedBtnSearch)
 END_MESSAGE_MAP()
 
 //TVN_ENDLABELEDIT 删除这行会不能设置断点，不信你试试
@@ -551,7 +671,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 			SysConfig.RadminColor
 			);
 		TRACE("%s\r\n",sqlstr);
-		int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		int rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 	}
 }
 
@@ -575,7 +695,7 @@ void CRemoteManDlg::OnMenuClickedAddGroup(void)
 		char sqlstr[128];
 		sprintf_s(sqlstr,sizeof(sqlstr),"select count() from GroupTab where ParentId=%d and Name='%s';",ParentId,dlg.m_GroupName);
 		TRACE("%s\r\n",sqlstr);		
-		int rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &GroupCnt, NULL);
+		int rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &GroupCnt, NULL);
 		if (GroupCnt>0)
 		{
 			MessageBox("该分组名已经存在","错误",MB_ICONERROR);
@@ -584,12 +704,12 @@ void CRemoteManDlg::OnMenuClickedAddGroup(void)
 		//添加到数据库
 		sprintf_s(sqlstr,sizeof(sqlstr),"insert into GroupTab values(NULL,'%s',%d);",dlg.m_GroupName,ParentId);
 		TRACE("%s\r\n",sqlstr);
-		rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 		//读取这条数据的ID
+		int Id=0;
 		sprintf_s(sqlstr,sizeof(sqlstr),"select id from GroupTab where ParentId=%d and Name='%s';",ParentId,dlg.m_GroupName);
 		TRACE("%s\r\n",sqlstr);
-		int Id=0;
-		rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &Id, NULL);
+		rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &Id, NULL);
 		hItem=m_Tree.InsertItem(dlg.m_GroupName,0,1,hItem);
 		m_Tree.SetItemData(hItem,Id);
 		m_Tree.SelectItem(hItem);
@@ -659,23 +779,29 @@ afx_msg LRESULT CRemoteManDlg::OnAddHostMessage(WPARAM wParam, LPARAM lParam)
 	sprintf_s(sqlstr,sizeof(sqlstr),"select count() from HostTab where ParentId=%d and Name='%s' and CtrlMode=%d;",
 		ParentId, pHost->Name, pHost->CtrlMode);
 	TRACE("%s\r\n",sqlstr);
-	int rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &HostCnt, NULL);
+	int rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &HostCnt, NULL);
 	if (HostCnt>0)
 	{
 		MessageBox("该主机名已存在.","错误",MB_ICONERROR);
 		return 1;
 	}
 	//添加到数据库
-	sprintf_s(sqlstr,sizeof(sqlstr),"insert into HostTab values(NULL,'%s',%d,%d,'%s',%d,'%s','%s','%s');", 	pHost->Name, ParentId, 
-		pHost->CtrlMode, pHost->HostAddress, pHost->HostPort, pHost->Account, 
-		AesEnCodeToStr(pHost->Password,strlen(pHost->Password),str,AES_KEY), pHost->ReadMe);
+	sprintf_s(sqlstr,sizeof(sqlstr),"insert into HostTab values(NULL,'%s',%d,%d,'%s',%d,'%s','%s','%s');", 	
+		pHost->Name, 
+		ParentId, 
+		pHost->CtrlMode, 
+		pHost->HostAddress, 
+		pHost->HostPort, 
+		pHost->Account, 
+		AesEnCodeToStr(pHost->Password,strlen(pHost->Password),str,AES_KEY), 
+		pHost->ReadMe);
 	TRACE("%s\r\n",sqlstr);
-	rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 	//读取ID
 	int Id=0;
 	sprintf_s(sqlstr,sizeof(sqlstr),"select id from HostTab where ParentId=%d and Name='%s';",ParentId,pHost->Name);
 	TRACE("%s\r\n",sqlstr);
-	rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &Id, NULL);
+	rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &Id, NULL);
 	//添加到列表
 	ListAddHost(pHost,Id);
 
@@ -707,26 +833,6 @@ void CRemoteManDlg::ListAddHost(HOST_STRUCT const * pHost, int Id)
 	m_List.SetItemData(n,Id);
 }
 
-static int ReadHostCallback(void* para, int n_column, char** column_value, char** column_name)
-{
-	CArray<HOST_STRUCT,HOST_STRUCT&>*pHostArray=(CArray<HOST_STRUCT,HOST_STRUCT&>*)para;
-
-	HOST_STRUCT Host;
-	memset(&Host,0,sizeof(Host));
-	Host.Id=atoi(column_value[0]);										//Id
-	strcpy_s(Host.Name,sizeof(Host.Name),column_value[1]);				//主机名称
-	Host.CtrlMode=atoi(column_value[3]);								//控制类型
-	strcpy_s(Host.HostAddress,sizeof(Host.HostAddress),column_value[4]);//主机地址
-	Host.HostPort=atoi(column_value[5]);								//端口
-	strcpy_s(Host.Account,sizeof(Host.Account),column_value[6]);		//帐号
-	if (column_value[7]!=NULL)											//密码
-		strcpy_s(Host.Password,sizeof(Host.Password),column_value[7]);
-	if (column_value[8]!=NULL)											//说明
-		strcpy_s(Host.ReadMe,sizeof(Host.ReadMe),column_value[8]);
-	pHostArray->Add(Host);
-	return 0;
-}
-
 void CRemoteManDlg::OnMenuClickedEditHost(void)
 {
 	if (m_List.GetSelectedCount()!=1) return;
@@ -737,30 +843,51 @@ void CRemoteManDlg::OnMenuClickedEditHost(void)
 	CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
 	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where Id=%d;",Id);
 	TRACE("%s\r\n",sqlstr);
-	int rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallback, &HostArray, NULL);
+	int rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
 	if (HostArray.GetSize()!=1) return;
 	HOST_STRUCT Host=HostArray[0];
 
 	CAddHostDlg Dlg(&Host, 0);
 	if (Dlg.DoModal()!=IDOK) return;
-	
+	//假定更新了服务器名称，先检查该名称是否存在
+	int HostCnt=0;
+	sprintf_s(sqlstr,sizeof(sqlstr),"select count() from HostTab where ParentId=%d and Name='%s' and CtrlMode=%d and Id!=%d;",
+		Host.ParentId, Dlg.m_Host.Name, Dlg.m_Host.CtrlMode,Host.Id);
+	TRACE("%s\r\n",sqlstr);
+	 rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &HostCnt, NULL);
+	if (HostCnt>0)
+	{
+		MessageBox("该主机名已存在.","错误",MB_ICONERROR);
+		return;
+	}
 	//更新数据库
 	if (Dlg.IsPasswordChange)
 	{
 		sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set Name='%s',CtrlMode=%d,HostAddress='%s',HostPort=%d,Account='%s',"
 			"Password='%s',HostReadme='%s' where id=%d;",
-			Dlg.m_Host.Name, Dlg.m_Host.CtrlMode, Dlg.m_Host.HostAddress, Dlg.m_Host.HostPort, Dlg.m_Host.Account, 
-			AesEnCodeToStr(Dlg.m_Host.Password,strlen(Dlg.m_Host.Password),str,AES_KEY), Dlg.m_Host.ReadMe,Id);
+			Dlg.m_Host.Name, 
+			Dlg.m_Host.CtrlMode, 
+			Dlg.m_Host.HostAddress, 
+			Dlg.m_Host.HostPort, 
+			Dlg.m_Host.Account, 
+			AesEnCodeToStr(Dlg.m_Host.Password,strlen(Dlg.m_Host.Password),str,AES_KEY), 
+			Dlg.m_Host.ReadMe,
+			Id);
 	}
 	else
 	{
 		sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set Name='%s',CtrlMode=%d,HostAddress='%s',HostPort=%d,Account='%s',"
 			"HostReadme='%s' where id=%d;",
-			Dlg.m_Host.Name, Dlg.m_Host.CtrlMode, Dlg.m_Host.HostAddress, Dlg.m_Host.HostPort, 
-			Dlg.m_Host.Account, Dlg.m_Host.ReadMe,Id);
+			Dlg.m_Host.Name, 
+			Dlg.m_Host.CtrlMode, 
+			Dlg.m_Host.HostAddress, 
+			Dlg.m_Host.HostPort, 
+			Dlg.m_Host.Account, 
+			Dlg.m_Host.ReadMe,
+			Id);
 	}
 	TRACE("%s\r\n",sqlstr);
-	rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 	//更新列表框
 	m_List.SetItem(n,0,LVIF_IMAGE,NULL,2+Dlg.m_Host.CtrlMode,0,0,0);
 	m_List.SetItemText(n,0,CTRL_MODE[Dlg.m_Host.CtrlMode]);
@@ -1052,7 +1179,7 @@ void CRemoteManDlg::ConnentHost(int RadminCtrlMode)
 	CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
 	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where Id=%d;",m_List.GetItemData(n));
 	TRACE("%s\r\n",sqlstr);
-	int rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallback, &HostArray, NULL);
+	int rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
 	if (HostArray.GetSize()!=1) return;
 	HOST_STRUCT Host=HostArray[0];
 	if (Host.Password[0]!=0)
@@ -1100,19 +1227,29 @@ void CRemoteManDlg::OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult)
 {
 	LPNMTVDISPINFO pTVDispInfo = reinterpret_cast<LPNMTVDISPINFO>(pNMHDR);
 	// TODO: 在此添加控件通知处理程序代码
+	*pResult = 0;
 	CString Name=pTVDispInfo->item.pszText;
 	Name.Trim();
 	if (Name.GetLength()==0 || Name.GetLength()>=64 || pTVDispInfo->item.mask==0)
+		return;
+	
+	char sqlstr[128];
+	int Cnt=0;
+	int Id=m_Tree.GetItemData(pTVDispInfo->item.hItem);
+	int ParentId=m_Tree.GetItemData(m_Tree.GetParentItem(pTVDispInfo->item.hItem));
+	//先检查此名称是否存在
+	int rc=sprintf_s(sqlstr,sizeof(sqlstr),"select count() from GroupTab where ParentId=%d and Name='%s' and Id!=%d;",ParentId,Name,Id);
+	TRACE("%s\r\n",sqlstr);
+	rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &Cnt, NULL);
+	if (Cnt!=0) 
 	{
-		*pResult = 0;
+		MessageBox("该分组名称已经存在","错误",MB_ICONERROR);
 		return;
 	}
-
-	char sqlstr[128];
-	int Id=m_Tree.GetItemData(pTVDispInfo->item.hItem);
+	//更新数据库
 	sprintf_s(sqlstr,sizeof(sqlstr),"update GroupTab set Name='%s' where Id=%d", Name, Id);
 	TRACE("%s\r\n",sqlstr);
-	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 
 	*pResult = 1;
 }
@@ -1138,7 +1275,7 @@ void CRemoteManDlg::LoadHostList(HTREEITEM hItem)
 	CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
 	HostArray.SetSize(0,20);
 	TRACE("%s\r\n",sqlstr);
-	rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallback, &HostArray, NULL);
+	rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
 	for (int i=0; i<HostArray.GetSize(); i++)
 	{
 		HOST_STRUCT Host=HostArray[i];
@@ -1161,7 +1298,7 @@ void CRemoteManDlg::OnTvnSelchangedTree1(NMHDR *pNMHDR, LRESULT *pResult)
 static int ReadStrCallback(void* para, int n_column, char** column_value, char** column_name)
 {
 	if (column_value[0]!=NULL)
-		strcpy_s((char*)para,256,column_value[0]);
+		strcpy_s((char*)para,256,CodeConverter::Utf8ToAscii(column_value[0]).c_str());
 	return 0;
 }
 
@@ -1419,10 +1556,9 @@ void CRemoteManDlg::OnMenuClickedExportGroup(void)
 	if (fdlg.DoModal()!=IDOK) return;
 	//附加数据库
 	char sqlstr[1536];
-	sprintf_s(sqlstr,sizeof(sqlstr),"attach database '%s' as 'export';",
-		CodeConverter::AsciiToUtf8((char const*)fdlg.GetPathName()).c_str());
+	sprintf_s(sqlstr,sizeof(sqlstr),"attach database '%s' as 'export';",fdlg.GetPathName());
 	TRACE("%s\r\n",sqlstr);
-	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	int rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 	if (rc!=0)
 	{
 		MessageBox("导出分组出错.","错误",MB_ICONERROR);
@@ -1507,10 +1643,10 @@ void CRemoteManDlg::ImportGroup(HTREEITEM hItem, int ExportParentId)
 			Id=hItem==NULL || hItem==TVI_ROOT ? 0: m_Tree.GetItemData(hItem);		//这是要导入的父ID
 			rc=sprintf_s(sqlstr,sizeof(sqlstr),"insert into GroupTab values(NULL,'%s',%d);",g.Name,Id);
 			TRACE("%s\r\n",sqlstr);
-			rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+			rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 			rc=sprintf_s(sqlstr,sizeof(sqlstr),"select Id from GroupTab where ParentId=%d and Name='%s';",Id,g.Name);
 			TRACE("%s\r\n",sqlstr);
-			rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &Id, NULL);	//这是导入的子ID
+			rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &Id, NULL);	//这是导入的子ID
 			hChildItem=m_Tree.InsertItem(g.Name,0,1,hItem);
 			m_Tree.SetItemData(hChildItem, Id);
 		}
@@ -1518,7 +1654,7 @@ void CRemoteManDlg::ImportGroup(HTREEITEM hItem, int ExportParentId)
 		CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
 		rc=sprintf_s(sqlstr,sizeof(sqlstr),"select * from export.HostTab where ParentId=%d;",g.Id);
 		TRACE("%s\r\n",sqlstr);
-		rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallback, &HostArray, NULL);
+		rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
 		for (int i=0; i<HostArray.GetSize(); i++)
 		{
 			HOST_STRUCT Host=HostArray[i];
@@ -1527,14 +1663,14 @@ void CRemoteManDlg::ImportGroup(HTREEITEM hItem, int ExportParentId)
 			rc=sprintf_s(sqlstr,sizeof(sqlstr),"select count() from HostTab where ParentId=%d and Name='%s' and CtrlMode=%d;",
 				Id, Host.Name, Host.CtrlMode);
 			TRACE("%s\r\n",sqlstr);
-			rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &Cnt, NULL);
+			rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &Cnt, NULL);
 			//添加到数据库
 			if (Cnt==0)
 			{
 				rc=sprintf_s(sqlstr,sizeof(sqlstr),"insert into HostTab values(NULL,'%s',%d,%d,'%s',%d,'%s','%s','%s');",
 					Host.Name, Id, Host.CtrlMode, Host.HostAddress, Host.HostPort, Host.Account, Host.Password, Host.ReadMe);
 				TRACE("%s\r\n",sqlstr);
-				rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &Cnt, NULL);
+				rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 			}
 		}
 		//枚举子分组
@@ -1555,10 +1691,9 @@ void CRemoteManDlg::OnMenuClickedImportGroup(void)
 	if (fdlg.DoModal()!=IDOK) return;
 	if (fdlg.m_GroupSel==0) hItem=TVI_ROOT;
 	//附加数据库
-	sprintf_s(sqlstr,sizeof(sqlstr),"attach database '%s' as 'export';",
-		CodeConverter::AsciiToUtf8((char const*)fdlg.GetPathName()).c_str());
+	sprintf_s(sqlstr,sizeof(sqlstr),"attach database '%s' as 'export';",fdlg.GetPathName());
 	TRACE("%s\r\n",sqlstr);
-	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	int rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 	if (rc!=0)
 	{
 		MessageBox("导入分组出错.","错误",MB_ICONERROR);
@@ -1587,6 +1722,7 @@ static bool ScanFunction(char const *Address, int Port, int TimeOut)
 	serveraddr.sin_family=AF_INET;
 	serveraddr.sin_port=htons(Port);
 	hostent *host=gethostbyname(Address);
+	if (host==NULL) return false;
 	char *ip=inet_ntoa(*(struct in_addr*)host->h_addr_list[0]);
 	serveraddr.sin_addr.S_un.S_addr=inet_addr(ip);
 	if (serveraddr.sin_addr.S_un.S_addr==INADDR_NONE)
@@ -1641,3 +1777,28 @@ void CRemoteManDlg::OnBnClickedBtnCheckOnline()
 	m_Tree.EnableWindow(FALSE);
 	CreateThread(NULL,0,ScanOnlineThread,this,0,NULL);
 }
+
+
+void CRemoteManDlg::OnBnClickedBtnSearch()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	char str[64],sqlstr[512];
+	if (GetDlgItemText(IDC_EDIT_SEARCH, str, sizeof(str)-1)==0) return;
+	CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
+	HostArray.SetSize(0,20);
+	if (strcmp(str,"*")==0)
+		strcpy_s(sqlstr,sizeof(sqlstr),"select * from HostTab;");
+	else
+		sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where HostAddress like '%%%s%%' or Name like '%%%s%%';",str,str);
+	TRACE("%s\r\n",sqlstr);
+	int rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadHostCallBack, &HostArray, NULL);
+
+	m_List.DeleteAllItems();
+	SetDlgItemText(IDC_EDIT_README,"");
+	for (int i=0; i<HostArray.GetSize(); i++)
+	{
+		HOST_STRUCT Host=HostArray[i];
+		ListAddHost(&Host,Host.Id);
+	}
+}
+
