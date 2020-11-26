@@ -506,7 +506,7 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolBar.SetButtonText(12,"…Ë÷√");
 
 	m_ToolBar.GetToolBarCtrl().SetImageList(&m_ToolbarImageList);
-	m_ToolBar.SetSizes(CSize(72,56),CSize(20,34));
+	m_ToolBar.SetSizes(CSize(72,56),CSize(32,32));
 
 	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
 }
