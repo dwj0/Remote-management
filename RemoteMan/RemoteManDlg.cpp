@@ -1171,7 +1171,7 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 
 void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
-	char const *VNCPath="vnc.exe";			//当路径为空时使用同目录下的radmin.exe
+	char const *VNCPath="vncviewer.exe";			//当路径为空时使用同目录下的radmin.exe
 	if (pConfig->VNCPath[0]!=0) VNCPath=pConfig->VNCPath;
 	//查看文件是否存在
 	CFileStatus fstatus;
@@ -1182,19 +1182,15 @@ void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 	}
 	char str1[100],str2[512];
 	//启动Radmin连接服务器
-	if (pHost->HostPort==5900)
-		strcpy_s(str1,sizeof(str1),pHost->HostAddress);
-	else
-		sprintf_s(str1,sizeof(str1),"%s:%d",pHost->HostAddress,pHost->HostPort);
+	sprintf_s(str1,sizeof(str1),"%s:%d",pHost->HostAddress,pHost->HostPort);
 	if (pConfig->RadminFullScreen)
 		sprintf_s(str2,sizeof(str2),"%s -FullScreen %s",VNCPath,str1);
 	else
 		sprintf_s(str2,sizeof(str2),"%s %s",VNCPath,str1);
 	TRACE("%s\r\n",str2);
-//	ShellExecute(NULL,"open",VNCPath,str1,NULL,SW_SHOW);
 	WinExec(str2,SW_SHOW);
 	//查找窗口标题框
-	sprintf_s(str2,sizeof(str2),"VNC 身份验证  汉化：XiaoSD: %s [未加密]",str1);
+	sprintf_s(str2,sizeof(str2),"VNC 身份认证   %s",str1);
 	HWND hWnd;
 	clock_t t2,t1=clock();
 	for (t2=t1;t2-t1<8000;t2=clock())
@@ -1206,7 +1202,7 @@ void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 	}
 	if (hWnd==NULL)	return;
 	//填写信息并发送
-	HWND PasswordWnd=::GetDlgItem(hWnd,0x3e8);
+	HWND PasswordWnd=::GetDlgItem(hWnd,0x3f1);
 	if (PasswordWnd!=NULL)
 		::SendMessage(PasswordWnd,WM_SETTEXT,0,(LPARAM)pHost->Password);
 	::PostMessage(hWnd,WM_COMMAND,1,0);
@@ -1214,7 +1210,7 @@ void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 
 void CRemoteManDlg::OnMenuClickedVncListen(void)
 {
-	char const *VNCPath="vnc.exe";			//当路径为空时使用同目录下的radmin.exe
+	char const *VNCPath="vncviewer.exe";			//当路径为空时使用同目录下的radmin.exe
 	if (SysConfig.VNCPath[0]!=0) VNCPath=SysConfig.VNCPath;
 	//查看文件是否存在
 	CFileStatus fstatus;
@@ -1224,7 +1220,7 @@ void CRemoteManDlg::OnMenuClickedVncListen(void)
 		return;
 	}
 	char str[512];
-	sprintf_s(str,sizeof(str),"%s -Listen 5500",SysConfig.VNCPath);
+	sprintf_s(str,sizeof(str),"%s -Listen",VNCPath);
 	TRACE("%s\r\n",str);
 	WinExec(str,SW_SHOW);
 	MessageBox("已开启端口：5500 的监听.");
