@@ -27,6 +27,7 @@ Password char(66),\r\n\
 RadminPath char(256),\r\n\
 SSHPath char(256),\r\n\
 VNCPath char(256),\r\n\
+SSHParamFormat char(64),\r\n\
 CheckOnlineTimeOut int,\r\n\
 MstscConsole boolean,\r\n\
 MstscUseDrive boolean,\r\n\
@@ -59,7 +60,7 @@ Account char(20) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into %sConfigTab values(0, 0, 0, true, '', '', '', '', 500, true, true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
+insert into %sConfigTab values(0, 0, 0, true, '', '', '', '', '', 500, true, true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
@@ -248,6 +249,8 @@ static int ReadConfigCallback(void* para, int n_column, char** column_value, cha
 			strcpy_s(pConfig->SSHPath,sizeof(pConfig->SSHPath),column_value[i]);
 		else if (strcmp(column_name[i],"VNCPath")==0)
 			strcpy_s(pConfig->VNCPath,sizeof(pConfig->VNCPath),column_value[i]);
+		else if (strcmp(column_name[i],"SSHParamFormat")==0)
+			strcpy_s(pConfig->SSHParamFormat,sizeof(pConfig->SSHParamFormat),column_value[i]);
 		else if (strcmp(column_name[i],"CheckOnlineTimeOut")==0)
 			pConfig->CheckOnlineTimeOut =atoi(column_value[i]);
 		else if (strcmp(column_name[i],"MstscConsole")==0)
@@ -317,6 +320,7 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 	//当DatabaseVer=-1时，表明这个字段不存在，要添加，并同时添加VNCPath列和CheckOnlineTimeOut列。 另外，之前数据库保存的是GB2312编码，要转换成UTF8格式
 	if (SysConfig.DatabaseVer==-1)
 	{
+		SysConfig.DatabaseVer=0;
 		if (AfxMessageBox("将对数据库进行Ascii到UTF8的编码转换\r\n转换后数据库不能用于旧版软件",MB_OKCANCEL)!=IDOK)
 			exit(0);
 		//添加列
@@ -325,9 +329,6 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 			"alter table ConfigTab add column VNCPath char(256);";
 		TRACE("%s\r\n",sqlstr);
 		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
-		strcpy_s(sqlstr,sizeof(sqlstr),"update ConfigTab set DatabaseVer=0 where id=0;");
-		TRACE("%s\r\n",sqlstr);
-		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
 		//转换ConfigTab的编码
 		rc=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set RadminPath='%s',SSHPath='%s',VNCPath='%s' where id=0;",
 			SysConfig.RadminPath, SysConfig.SSHPath, SysConfig.VNCPath);
@@ -360,6 +361,16 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 			TRACE("%s\r\n",sqlstr);
 			rc=sqlite3_exec(m_pDB,CodeConverter::AsciiToUtf8(sqlstr).c_str(),NULL,NULL,NULL);
 		}
+	}
+	//当DatabaseVer=0时，缺少SSHParamFormat列
+	if (SysConfig.DatabaseVer==0)
+	{
+		SysConfig.DatabaseVer=1;
+		//添加列
+		char sqlstr[1024]="alter table ConfigTab add column SSHParamFormat char(64);"
+			"update ConfigTab set DatabaseVer=1 where id=0;";
+		TRACE("%s\r\n",sqlstr);
+		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
 	}
 }
 
@@ -427,8 +438,9 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_DELGROUP, &CRemoteManDlg::OnMenuClickedDelGroup)
 	ON_BN_CLICKED(ID_MENU_ADDHOST, &CRemoteManDlg::OnMenuClickedAddHost)
 	ON_BN_CLICKED(ID_MENU_EDITHOST, &CRemoteManDlg::OnMenuClickedEditHost)
-	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedDelHost)
+	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedVncListen)
 	ON_BN_CLICKED(ID_MENU_CONNENT, &CRemoteManDlg::OnMenuClickedConnentHost)
+	ON_BN_CLICKED(ID_MENU_VNC_LISTEN,&CRemoteManDlg::OnMenuClickedVncListen)
 	ON_BN_CLICKED(ID_MENU_RENAMEGROUP, &CRemoteManDlg::OnMenuClickedRenameGroup)
 	ON_BN_CLICKED(ID_MENU_EXPORTGROUP,&CRemoteManDlg::OnMenuClickedExportGroup)
 	ON_BN_CLICKED(ID_MENU_IMPORTGROUP,&CRemoteManDlg::OnMenuClickedImportGroup)
@@ -638,8 +650,18 @@ HBRUSH CRemoteManDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 
 void CRemoteManDlg::OnToolbarClickedSysSet(void)
 {
-	CSysSetDlg Dlg(SysConfig.ParentShowHost, SysConfig.MstscLocalDrive, SysConfig.MstscColor, SysConfig.MstscDeskImg,SysConfig.MstscFontSmooth,
-		SysConfig.MstscThemes, SysConfig.RadminColor, SysConfig.RadminPath, SysConfig.SSHPath, SysConfig.VNCPath, SysConfig.CheckOnlineTimeOut);
+	CSysSetDlg Dlg(SysConfig.ParentShowHost, 
+		SysConfig.MstscLocalDrive, 
+		SysConfig.MstscColor, 
+		SysConfig.MstscDeskImg,
+		SysConfig.MstscFontSmooth,
+		SysConfig.MstscThemes, 
+		SysConfig.RadminColor, 
+		SysConfig.RadminPath, 
+		SysConfig.SSHPath, 
+		SysConfig.VNCPath, 
+		SysConfig.SSHParamFormat,
+		SysConfig.CheckOnlineTimeOut);
 	if (Dlg.DoModal()==IDOK)
 	{
 		SysConfig.ParentShowHost=Dlg.m_ParentShowHost!=0;
@@ -647,6 +669,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 		strcpy_s(SysConfig.SSHPath,sizeof(SysConfig.SSHPath),Dlg.m_SshPath);
 		strcpy_s(SysConfig.VNCPath,sizeof(SysConfig.VNCPath),Dlg.m_VNCPath);
 		strcpy_s(SysConfig.MstscLocalDrive,sizeof(SysConfig.MstscLocalDrive),Dlg.m_MstDriveStr);
+		strcpy_s(SysConfig.SSHParamFormat,sizeof(SysConfig.SSHParamFormat),Dlg.m_SSHFormat);
 		SysConfig.MstscColor=Dlg.m_MstColor;
 		SysConfig.MstscDeskImg=Dlg.m_MstShowDeskImg!=0;
 		SysConfig.MstscFontSmooth=Dlg.m_MstFontSmooth!=0;
@@ -656,12 +679,13 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 		
 		char sqlstr[1024];
 		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',VNCPath='%s',"
-											  "CheckOnlineTimeOut=%d,MstscLocalDrive='%s',MstscColor=%d,MstscDeskImg=%s,"
-											  "MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
+											  "SSHParamFormat='%s',CheckOnlineTimeOut=%d,MstscLocalDrive='%s',MstscColor=%d,"
+											  "MstscDeskImg=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
 			SysConfig.ParentShowHost ? "true":"false",
 			SysConfig.RadminPath,
 			SysConfig.SSHPath,
 			SysConfig.VNCPath,
+			SysConfig.SSHParamFormat,
 			SysConfig.CheckOnlineTimeOut,
 			SysConfig.MstscLocalDrive,
 			SysConfig.MstscColor,
@@ -940,7 +964,7 @@ void CRemoteManDlg::OnToolbarClickedOpenMstsc(void)
 	char szBuffer[MAX_PATH];
 	SHGetSpecialFolderPath(NULL, szBuffer, CSIDL_SYSTEM, FALSE);
 	strcat_s(szBuffer,MAX_PATH,"\\Mstsc.exe");
-	WinExec(szBuffer,WM_SHOWWINDOW);
+	WinExec(szBuffer,SW_SHOW);
 }
 
 
@@ -955,14 +979,14 @@ void CRemoteManDlg::OnToolbarClickedOpenRadmin(void)
 //		AfxMessageBox("Radmin路径设置错误");
 		return;
 	}
-	WinExec(RadminPath,WM_SHOWWINDOW);
+	WinExec(RadminPath,SW_SHOW);
 }
 
 
 void CRemoteManDlg::OnToolbarClickedOpenSSH(void)
 {
 	if (strstr(SysConfig.SSHPath,".exe"))
-		WinExec(SysConfig.SSHPath,WM_SHOWWINDOW);
+		WinExec(SysConfig.SSHPath,SW_SHOW);
 }
 
 
@@ -985,9 +1009,8 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"desktopwidth:i:%d\r\ndesktopheight:i:%d\r\n",Width,Height);
 	//颜色位数
 	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"session bpp:i:%d\r\n",pConfig->MstscColor==0 ? 16:pConfig->MstscColor==1 ? 24:32);
-	//默认数据
-	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"winposstr:s:0,1,0,0,1024,768\r\n");
-	len+=sizeof("winposstr:s:0,1,0,0,1024,768\r\n")-1;
+	//显示位置及窗口大小
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"winposstr:s:0,1,0,0,%d,%d\r\n",Width+40,Height+60);
 	//远程服务器地址
 	if (pHost->HostPort==3389)
 		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"full address:s:%s\r\n",pHost->HostAddress);
@@ -1089,7 +1112,7 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	char szBuffer[MAX_PATH];
 	SHGetSpecialFolderPath(NULL, szBuffer, CSIDL_SYSTEM, FALSE);
 	sprintf_s(RdpStr,sizeof(RdpStr),"%s\\Mstsc.exe /%s %s", szBuffer,pConfig->MstscConsole?"console":"admin",str);	//命令行
-	WinExec(RdpStr, WM_SHOWWINDOW);
+	WinExec(RdpStr, SW_SHOW);
 	TRACE("Rdp文件长度=%d Rdp命令行:%s\r\n",len,RdpStr);
 	Sleep(1000);
 	DeleteFile(str);
@@ -1146,28 +1169,123 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 	::PostMessage(hWnd,WM_COMMAND,0x78,0);
 }
 
+void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
+{
+	char const *VNCPath="vncviewer.exe";			//当路径为空时使用同目录下的radmin.exe
+	if (pConfig->VNCPath[0]!=0) VNCPath=pConfig->VNCPath;
+	//查看文件是否存在
+	CFileStatus fstatus;
+	if (strstr(VNCPath,".exe")==NULL || !CFile::GetStatus(VNCPath,fstatus))
+	{
+		AfxMessageBox("VNC路径设置错误");
+		return;
+	}
+	char str1[100],str2[512];
+	//启动Radmin连接服务器
+	sprintf_s(str1,sizeof(str1),"%s:%d",pHost->HostAddress,pHost->HostPort);
+	if (pConfig->RadminFullScreen)
+		sprintf_s(str2,sizeof(str2),"%s -FullScreen %s",VNCPath,str1);
+	else
+		sprintf_s(str2,sizeof(str2),"%s %s",VNCPath,str1);
+	TRACE("%s\r\n",str2);
+	WinExec(str2,SW_SHOW);
+	//查找窗口标题框
+	sprintf_s(str2,sizeof(str2),"VNC 身份认证   %s",str1);
+	HWND hWnd;
+	clock_t t2,t1=clock();
+	for (t2=t1;t2-t1<8000;t2=clock())
+	{
+		Sleep(1);
+		hWnd=FindWindow(NULL,str2);
+		if (hWnd!=NULL)
+			break;
+	}
+	if (hWnd==NULL)	return;
+	//填写信息并发送
+	HWND PasswordWnd=::GetDlgItem(hWnd,0x3f1);
+	if (PasswordWnd!=NULL)
+		::SendMessage(PasswordWnd,WM_SETTEXT,0,(LPARAM)pHost->Password);
+	::PostMessage(hWnd,WM_COMMAND,1,0);
+}
+
+void CRemoteManDlg::OnMenuClickedVncListen(void)
+{
+	char const *VNCPath="vncviewer.exe";			//当路径为空时使用同目录下的radmin.exe
+	if (SysConfig.VNCPath[0]!=0) VNCPath=SysConfig.VNCPath;
+	//查看文件是否存在
+	CFileStatus fstatus;
+	if (strstr(VNCPath,".exe")==NULL || !CFile::GetStatus(VNCPath,fstatus))
+	{
+		AfxMessageBox("VNC路径设置错误");
+		return;
+	}
+	char str[512];
+	sprintf_s(str,sizeof(str),"%s -Listen",VNCPath);
+	TRACE("%s\r\n",str);
+	WinExec(str,SW_SHOW);
+	MessageBox("已开启端口：5500 的监听.");
+}
+
 void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
 	//查看文件是否存在
+	char str[MAX_PATH];
 	CFileStatus fstatus;
 	if (strstr(pConfig->SSHPath,".exe")==NULL || !CFile::GetStatus(pConfig->SSHPath,fstatus))
 	{
 		AfxMessageBox("SSH路径设置错误");
 		return;
 	}
+	//参数格式
+	char const *Format=pConfig->SSHParamFormat;
+	if (Format[0]==0)
+	{
+		CString Path=pConfig->SSHPath;
+		Path.MakeLower();
+		if (Path.Find("securecrt.exe")!=-1)
+			Format="/ssh2 %3@%1 /P %2 /PASSWORD %4";
+		else if (Path.Find("putty.exe")!=-1)
+			Format="-ssh -l %3 -pw %4 -P %2 %1";
+		else if (Path.Find("winscp.exe")!=-1)
+			Format="%3:%4@%1:%2";
+		else
+		{
+			AfxMessageBox("SSH命令行参数格式设置错误.");
+			return;
+		}
+	}
+
 	//连接
-	char str[128];
-	if (pHost->HostPort==22)
+	int len=sprintf_s(str,sizeof(str),"%s ",pConfig->SSHPath);
+	while (*Format)
 	{
-		sprintf_s(str,sizeof(str),"%s /ssh2 %s@%s /PASSWORD %s",
-			pConfig->SSHPath,pHost->Account,pHost->HostAddress,pHost->Password);
+		if (*Format!='%')
+		{
+			str[len++]=*Format++;
+			continue;
+		}
+		Format++;
+		switch (*Format++)
+		{
+		case '1':
+			len+=sprintf_s(str+len,sizeof(str)-len,"%s",pHost->HostAddress);
+			break;
+		case '2':
+			len+=sprintf_s(str+len,sizeof(str)-len,"%d",pHost->HostPort);
+			break;
+		case '3':
+			len+=sprintf_s(str+len,sizeof(str)-len,"%s",pHost->Account);
+			break;
+		case '4':
+			len+=sprintf_s(str+len,sizeof(str)-len,"%s",pHost->Password);
+			break;
+		default:
+			str[len++]='%';
+			Format--;
+		}
 	}
-	else
-	{
-		sprintf_s(str,sizeof(str),"%s /ssh2 %s@%s /P %d /PASSWORD %s",
-			pConfig->SSHPath,pHost->Account,pHost->HostAddress,pHost->HostPort,pHost->Password);
-	}
-	WinExec(str,WM_SHOWWINDOW);
+	TRACE("%s\r\n",str);
+	WinExec(str,SW_SHOW);
 }
 
 void CRemoteManDlg::ConnentHost(int RadminCtrlMode)
@@ -1200,9 +1318,7 @@ void CRemoteManDlg::ConnentHost(int RadminCtrlMode)
 	else if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_SSH_NAME)==0)
 		SSHConnent(&Host,&SysConfig);
 	else if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_VNC_NAME)==0)
-	{
-
-	}
+		VNCConnent(&Host,&SysConfig);
 }
 
 void CRemoteManDlg::OnMenuClickedConnentHost(void)
@@ -1439,7 +1555,7 @@ void CRemoteManDlg::OnNMRClickList1(NMHDR *pNMHDR, LRESULT *pResult)
 	{
 		char str[12];
 		m_List.GetItemText(pNMItemActivate->iItem,0,str,10);
-		Index=strcmp(str,CTRL_MODE_RADMIN_NAME)==0 ? 4:3;
+		Index=strcmp(str,CTRL_MODE_RADMIN_NAME)==0 ? 4:strcmp(str,CTRL_MODE_VNC_NAME)==0 ? 6:3;
 	}
 	else
 		Index=5;
@@ -1801,4 +1917,5 @@ void CRemoteManDlg::OnBnClickedBtnSearch()
 		ListAddHost(&Host,Host.Id);
 	}
 }
+
 

@@ -16,8 +16,9 @@ struct CONFIG_STRUCT{
 	char SysPassword[66];				//系统密码，使用AES保存最大31字节密码
 	bool ParentShowHost;				//父分组是否显示子分组的主机
 	char RadminPath[256];				//RADMIN路径，如果为空，则为同目录下的radmin.exe
-	char SSHPath[256];					//SSH路径，如果为空，则为同目录下的SecureCRT.exe
-	char VNCPath[256];					//VNC路径
+	char SSHPath[256];					//SSH路径
+	char VNCPath[256];					//VNC路径，如果为空，则为同目录下的VNC.exe
+	char SSHParamFormat[64];			//SSH命令行的参数格式，%1:地址 %2:端口 %3:帐户 %4:密码,如果为空，根据文件名自动选择
 	int  CheckOnlineTimeOut;			//在线检测超时时间ms
 	bool MstscConsole;					//远程桌面使用Console连接
 	bool MstscUseDrive;					//是否连接本地分区
@@ -128,4 +129,5 @@ public:
 	afx_msg void OnBnClickedBtnCheckOnline();
 	afx_msg void OnBnClickedBtnSearch();
 	void DataBaseConversion(int Ver);
+	void OnMenuClickedVncListen(void);
 };
