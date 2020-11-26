@@ -502,7 +502,7 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolBar.SetButtonText(7,"连接");
 	m_ToolBar.SetButtonText(8,"远程桌面");
 	m_ToolBar.SetButtonText(9,"Radmin");
-	m_ToolBar.SetButtonText(10,"SecureCRT");
+	m_ToolBar.SetButtonText(10,"SSH软件");
 	m_ToolBar.SetButtonText(12,"设置");
 
 	m_ToolBar.GetToolBarCtrl().SetImageList(&m_ToolbarImageList);
