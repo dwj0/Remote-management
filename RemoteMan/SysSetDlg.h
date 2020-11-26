@@ -20,6 +20,7 @@ public:
 				char const *RadminPath,
 				char const *SshPath,
 				char const *VNCPath,
+				char const *Format,
 				int TimeOut,
 				CWnd* pParent = NULL);   // 标准构造函数
 	virtual ~CSysSetDlg();
@@ -49,4 +50,6 @@ public:
 	virtual BOOL OnInitDialog();
 	void OnBnClickedSelPath(UINT Id);
 	CString m_VNCPath;
+	CString m_SSHFormat;
+	afx_msg void OnBnClickedBtnSshFormatHelp();
 };

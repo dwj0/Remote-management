@@ -12,8 +12,8 @@
 
 IMPLEMENT_DYNAMIC(CSysSetDlg, CDialogEx)
 
-CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,BOOL MstShowDeskImg,BOOL MstFontSmooth,
-			BOOL MstThemes,int RadminColor,char const *RadminPath,char const *SshPath, char const *VNCPath, int TimeOut, CWnd* pParent/*=NULL*/)
+CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,BOOL MstShowDeskImg,BOOL MstFontSmooth,	BOOL MstThemes,
+	int RadminColor,char const *RadminPath,char const *SshPath, char const *VNCPath, char const *Format, int TimeOut, CWnd* pParent/*=NULL*/)
 	: CDialogEx(CSysSetDlg::IDD, pParent)
 	, m_ParentShowHost(ParentShowHost)
 	, m_MstDriveStr(MstDriveStr)
@@ -25,6 +25,7 @@ CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,
 	, m_RadminPath(RadminPath)
 	, m_SshPath(SshPath)
 	, m_VNCPath(VNCPath)
+	, m_SSHFormat(Format)
 	, m_TimeOut(TimeOut)
 	, m_SrcPassword("******")
 {
@@ -49,6 +50,7 @@ void CSysSetDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_SRCPSAAWORD, m_SrcPassword);
 	DDX_Text(pDX, IDC_EDIT_TIMEOUT, m_TimeOut);
 	DDX_Text(pDX, IDC_EDIT_VNC_PATH, m_VNCPath);
+	DDX_Text(pDX, IDC_EDIT_SSH_FROMAT, m_SSHFormat);
 }
 
 
@@ -56,6 +58,7 @@ BEGIN_MESSAGE_MAP(CSysSetDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_CHANGE_PASSWORD, &CSysSetDlg::OnBnClickedBtnChangePassword)
 	ON_BN_CLICKED(IDOK, &CSysSetDlg::OnBnClickedOk)
 	ON_COMMAND_RANGE(IDC_BTN_SSH_PATH,IDC_BTN_VNC_PATH,&CSysSetDlg::OnBnClickedSelPath)
+	ON_BN_CLICKED(IDC_BTN_SSH_FORMAT_HELP, &CSysSetDlg::OnBnClickedBtnSshFormatHelp)
 END_MESSAGE_MAP()
 
 
@@ -136,4 +139,15 @@ void CSysSetDlg::OnBnClickedSelPath(UINT Id)
 	{
 		SetDlgItemText(IDC_EDIT_SSH_PATH+Id-IDC_BTN_SSH_PATH, fdlg.GetPathName());
 	}
+}
+
+void CSysSetDlg::OnBnClickedBtnSshFormatHelp()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	char const *str = "命令行中，%1:代表主机地址，%2:代表端口，%3:代表帐户名，%4:代表密码\r\n\r\n"
+		"SecureCRT的命令行格式为： /ssh2 %3@%1 /P %2 /PASSWORD %4\r\n"
+		"Putty的命令行格式为： -ssh -l %3 -pw %4 -P %2 %1\r\n"
+		"WinSCP的命令行格式为： %3:%4@%1:%2\r\n\r\n"
+		"其它软件可参考以上自己填写，如果为空，则根据以上3个的文件名自动匹配.";
+	MessageBox(str,"SSH 命令行参数帮助");
 }
