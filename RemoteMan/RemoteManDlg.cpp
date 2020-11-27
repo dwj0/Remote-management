@@ -499,7 +499,7 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolBar.SetButtonText(3,"添加主机");
 	m_ToolBar.SetButtonText(4,"编辑主机");
 	m_ToolBar.SetButtonText(5,"删除主机");
-	m_ToolBar.SetButtonText(7,"连接");
+	m_ToolBar.SetButtonText(7,"连接主机");
 	m_ToolBar.SetButtonText(8,"远程桌面");
 	m_ToolBar.SetButtonText(9,"Radmin");
 	m_ToolBar.SetButtonText(10,"SSH软件");
