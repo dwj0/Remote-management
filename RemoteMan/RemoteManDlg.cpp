@@ -1010,7 +1010,12 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	//颜色位数
 	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"session bpp:i:%d\r\n",pConfig->MstscColor==0 ? 16:pConfig->MstscColor==1 ? 24:32);
 	//显示位置及窗口大小
-	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"winposstr:s:0,1,0,0,%d,%d\r\n",Width+40,Height+60);
+	int ScreenWidth= GetSystemMetrics(SM_CXFULLSCREEN);
+	int ScreenHeight= GetSystemMetrics(SM_CYFULLSCREEN);
+	int xPos = (ScreenWidth-Width-40)/2, yPos=(ScreenHeight-Height-40)/2;
+	if (xPos<0) xPos=0;
+	if (yPos<0) yPos=0;
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"winposstr:s:0,1,%d,%d,%d,%d\r\n",xPos,yPos,xPos+Width+40,yPos+Height+60);
 	//远程服务器地址
 	if (pHost->HostPort==3389)
 		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"full address:s:%s\r\n",pHost->HostAddress);
