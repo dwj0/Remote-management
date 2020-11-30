@@ -1076,6 +1076,12 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	//RDP密码加密数据
 	if (pHost->Password[0]!=0)
 		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"password 51:b:%s\r\n",CryptRDPPassword(pHost->Password,str));
+	//禁止网络质量自动检测
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"networkautodetect:i:0\r\n");
+	len+=sizeof("networkautodetect:i:0\r\n")-1;
+	//指定连接类型为局域网10M或更高
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"connection type:i:6\r\n");
+	len+=sizeof("connection type:i:6\r\n")-1;
 	//是否禁止显示桌面背景
 	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"disable wallpaper:i:%d\r\n",pConfig->MstscDeskImg?0:1);
 	//是否禁止主题
