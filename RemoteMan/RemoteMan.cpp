@@ -83,7 +83,8 @@ BOOL CRemoteManApp::InitInstance()
 		char str[66];
 		CInputPasswordDlg pswdlg;
 		if (pswdlg.DoModal()!=IDOK) return FALSE;
-		if (strcmp(dlg.SysConfig.SysPassword, AesEnCodeToStr((char const*)pswdlg.m_Password,pswdlg.m_Password.GetLength(),str,AES_KEY))!=0)
+		if (pswdlg.m_Password.GetLength()>PASSWORD_MAXLEN ||
+			strcmp(dlg.SysConfig.SysPassword, AesEnCodeToStr((char const*)pswdlg.m_Password,pswdlg.m_Password.GetLength(),str,AES_KEY))!=0)
 		{
 			AfxMessageBox("ÃÜÂë´íÎó");
 			return FALSE;

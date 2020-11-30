@@ -56,7 +56,7 @@ ParentId int  not null,\r\n\
 CtrlMode int  not null,\r\n\
 HostAddress char(64) not null,\r\n\
 HostPort int not null,\r\n\
-Account char(20) not null,\r\n\
+Account char(32) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
@@ -1240,7 +1240,7 @@ void CRemoteManDlg::OnMenuClickedVncListen(void)
 void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
 	//查看文件是否存在
-	char str[MAX_PATH];
+	char str[MAX_PATH*2];
 	CFileStatus fstatus;
 	if (strstr(pConfig->SSHPath,".exe")==NULL || !CFile::GetStatus(pConfig->SSHPath,fstatus))
 	{

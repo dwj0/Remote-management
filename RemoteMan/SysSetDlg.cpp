@@ -99,13 +99,14 @@ BOOL CSysSetDlg::OnInitDialog()
 void CSysSetDlg::OnBnClickedBtnChangePassword()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	char Src[20], New[20], Ack[20];
-	int n0=GetDlgItemText(IDC_EDIT_SRCPSAAWORD,Src,sizeof(Src)-1);
-	int n1=GetDlgItemText(IDC_EDIT_NEWPASSWORD,New,sizeof(New)-1);
-	GetDlgItemText(IDC_EDIT_ACKPASSWORD,Ack,sizeof(Ack)-1);
-	if (n1>PASSWORD_MAXLEN || strcmp(Ack,New)!=0)
+	char Src[128], New[PASSWORD_MAXLEN+2], Ack[PASSWORD_MAXLEN+2];
+	int n0=GetDlgItemText(IDC_EDIT_SRCPSAAWORD,Src,sizeof(Src));
+	int n1=GetDlgItemText(IDC_EDIT_NEWPASSWORD,New,sizeof(New));
+	GetDlgItemText(IDC_EDIT_ACKPASSWORD,Ack,sizeof(Ack));
+	if (n0>PASSWORD_MAXLEN || n1>PASSWORD_MAXLEN || strcmp(Ack,New)!=0)
 	{
-		MessageBox("新密码信息不正确或密码超过16字节!");
+		sprintf_s(Src,sizeof(Src),"新密码信息不正确或密码超过%d字节!",PASSWORD_MAXLEN);
+		MessageBox(Src,"错误",MB_ICONERROR);
 		return;
 	}
 	char const *Res = (char *)GetParent()->SendMessage(WM_MODIFY_PASSWORD_MESSAGE, WPARAM(Src),LPARAM(New));
