@@ -120,6 +120,9 @@
     <ClInclude Include="FileDialogEx.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="DimEdit.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RemoteMan.cpp">
@@ -150,6 +153,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="FileDialogEx.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DimEdit.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -9,6 +9,7 @@
 #include "SysSetDlg.h"
 #include "AddGroupDlg.h"
 #include "AddHostDlg.h"
+#include "dimedit.h"
 
 struct CONFIG_STRUCT{
 	int  DatabaseVer;
@@ -130,4 +131,6 @@ public:
 	afx_msg void OnBnClickedBtnSearch();
 	void DataBaseConversion(int Ver);
 	void OnMenuClickedVncListen(void);
+	CDimEdit m_SearchEdit;
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 };

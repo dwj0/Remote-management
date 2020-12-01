@@ -68,6 +68,9 @@ COMMIT;\r\n\
 //密码66字节说明：密码最大长度为32字节(16-31字节都是要扩充到32字节的)，使用ASCII存储=64字节
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
+//默认列表框宽度
+static int const ListDefColumnWidth[]={80,160,140,55,100,37};
+
 class CAboutDlg : public CDialogEx
 {
 public:
@@ -426,6 +429,7 @@ void CRemoteManDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST1, m_List);
 	DDX_Control(pDX, IDC_TREE1, m_Tree);
+	DDX_Control(pDX, IDC_EDIT_SEARCH, m_SearchEdit);
 }
 
 BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
@@ -468,6 +472,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_WM_LBUTTONUP()
 	ON_BN_CLICKED(IDC_BTN_CHECK_ONLINE, &CRemoteManDlg::OnBnClickedBtnCheckOnline)
 	ON_BN_CLICKED(IDC_BTN_SEARCH, &CRemoteManDlg::OnBnClickedBtnSearch)
+	ON_WM_SIZE()
 END_MESSAGE_MAP()
 
 //TVN_ENDLABELEDIT 删除这行会不能设置断点，不信你试试
@@ -559,12 +564,12 @@ BOOL CRemoteManDlg::OnInitDialog()
 
 	m_List.SetExtendedStyle(LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES);
 	m_List.SetImageList(&m_ImageList,LVSIL_SMALL);
-	m_List.InsertColumn(0,"类型",LVCFMT_LEFT,80);
-	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,160);
-	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,140);
-	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,54);
-	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,100);
-	m_List.InsertColumn(5,"状态",LVCFMT_LEFT,36);
+	m_List.InsertColumn(0,"类型",LVCFMT_LEFT,ListDefColumnWidth[0]);
+	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,ListDefColumnWidth[1]);
+	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,ListDefColumnWidth[2]);
+	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,ListDefColumnWidth[3]);
+	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,ListDefColumnWidth[4]);
+	m_List.InsertColumn(5,"状态",LVCFMT_LEFT,ListDefColumnWidth[5]);
 
 	((CButton*)GetDlgItem(IDC_CHECK_MST_SHOW_WALLPAPER))->SetCheck(SysConfig.MstscDeskImg);
 	((CButton*)GetDlgItem(IDC_CHECK_MST_DRIVE))->SetCheck(SysConfig.MstscUseDrive);
@@ -577,6 +582,9 @@ BOOL CRemoteManDlg::OnInitDialog()
 	EnumTreeData(TVI_ROOT,0);
 	if (m_Tree.GetCount()==0)
 		SetDlgItemText(IDC_EDIT_README,"请先添加分组.");
+
+	m_SearchEdit.SetDimText("输入主机名或域名进行搜索");
+	m_SearchEdit.SetDimColor(RGB(150,150,250));
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -1911,7 +1919,7 @@ void CRemoteManDlg::OnBnClickedBtnSearch()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	char str[64],sqlstr[512];
-	if (GetDlgItemText(IDC_EDIT_SEARCH, str, sizeof(str)-1)==0) return;
+	if (GetDlgItemText(IDC_EDIT_SEARCH, str, sizeof(str)-1)==0 || m_Tree.GetCount()==0) return;
 	CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
 	HostArray.SetSize(0,20);
 	if (strcmp(str,"*")==0)
@@ -1928,4 +1936,87 @@ void CRemoteManDlg::OnBnClickedBtnSearch()
 		HOST_STRUCT Host=HostArray[i];
 		ListAddHost(&Host,Host.Id);
 	}
+}
+
+
+void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
+{
+	//右侧控件位置表，只要改变左右位置即可
+	static int const RIGHT_CTRL_IDS[]={
+		IDC_STATIC_PIC,IDC_BTN_CHECK_ONLINE,
+		IDC_STATIC_GROUP1,IDC_CHECK_MST_SHOW_WALLPAPER,IDC_CHECK_MST_DRIVE,IDC_CHECK_MST_AUDIO,
+		IDC_STATIC1,IDC_COMBO_MST_WINPOS,IDC_STATIC_GROUP2,IDC_CHECK_RADMIN_FULLSCREEN,
+		IDC_STATIC2,IDC_COMBO_RADMIN_CTRLMODE};
+	static int Mincx,Mincy;
+	CDialogEx::OnSize(nType, cx, cy);
+
+	// TODO: 在此处添加消息处理程序代码
+	TRACE("nType=%d,cx=%d,cy=%d\r\n",nType,cx,cy);
+	if (nType==1) return;		//最小化
+	//不能小于最小尺寸
+	if (Mincx==0) 
+	{
+		Mincx=cx,Mincy=cy;
+		return;				//第一次进入子控件还没创建呢
+	}
+	if (cx<Mincx) cx=Mincx;
+	if (cy<Mincy) cy=Mincy;
+	if (m_hWnd==NULL) return;
+	//移动右侧控件位置
+	//得到第一个控件的左侧位置，其它控件对应这个位置做偏差
+	CRect rt;
+	int left=0;
+	int const offset=96;	//第一个控件的位置相对右边为96
+	for (int i=0; i<sizeof(RIGHT_CTRL_IDS)/sizeof(RIGHT_CTRL_IDS[0]); i++)
+	{
+		GetDlgItem(RIGHT_CTRL_IDS[i])->GetWindowRect(rt);
+		ScreenToClient(rt);
+		if (left==0) left=rt.left;
+		TRACE("Top=%d,Bottom=%d,Left=%d,Right=%d\r\n",rt.top,rt.bottom,rt.left,rt.right);
+		rt.OffsetRect(cx-offset-left,0);
+		GetDlgItem(RIGHT_CTRL_IDS[i])->MoveWindow(rt);
+	}
+	//移动树控件和列表框,两个宽度的原始比例为：184/597
+	//左边界开始为4，中间空5，右边界CX-139,底部空3
+	GetDlgItem(IDC_TREE1)->GetWindowRect(rt);
+	ScreenToClient(rt);
+	int TreeWidth=(cx-148)*184/(184+597);
+	rt.right=rt.left+TreeWidth;
+	rt.bottom=cy-3;
+	GetDlgItem(IDC_TREE1)->MoveWindow(rt);
+	//列表框,底部空136
+	rt.left=rt.right+5;
+	rt.right=cx-139;
+	rt.bottom=cy-136;
+	GetDlgItem(IDC_LIST1)->MoveWindow(rt);
+	int ListWidth=rt.right-rt.left-25;		//25:滚动条宽度
+	//调整列宽
+	int Sum=0;
+	for (int i=0; i<sizeof(ListDefColumnWidth)/sizeof(ListDefColumnWidth[0]); i++)
+		Sum+=ListDefColumnWidth[i];
+	for (int i=0; i<sizeof(ListDefColumnWidth)/sizeof(ListDefColumnWidth[0]); i++)
+		m_List.SetColumnWidth(i,ListWidth*ListDefColumnWidth[i]/Sum);
+
+	//用于搜索的两个控件,底部偏差：104, 上部空：7, 编辑框右边空:109
+	rt.right-=109;
+	rt.top=rt.bottom+7;
+	rt.bottom=rt.top+25;		//高度为25
+	m_SearchEdit.MoveWindow(rt);
+	//按钮
+	rt.left=rt.right+12;
+	rt.right=rt.left+88;
+	GetDlgItem(IDC_BTN_SEARCH)->MoveWindow(rt);
+
+	//主机说明的组控件,
+	rt.left=4+TreeWidth+5;
+	rt.right=cx-139;
+	rt.top=cy-98;
+	rt.bottom=cy-3;
+	GetDlgItem(IDC_STATIC_GROUP3)->MoveWindow(rt);
+	//主机说明的EDIT控件
+	rt.left+=12;
+	rt.right-=13;
+	rt.top+=23;
+	rt.bottom-=12;
+	GetDlgItem(IDC_EDIT_README)->MoveWindow(rt);
 }
