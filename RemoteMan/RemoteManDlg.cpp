@@ -1969,12 +1969,14 @@ void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
 	int const offset=96;	//第一个控件的位置相对右边为96
 	for (int i=0; i<sizeof(RIGHT_CTRL_IDS)/sizeof(RIGHT_CTRL_IDS[0]); i++)
 	{
-		GetDlgItem(RIGHT_CTRL_IDS[i])->GetWindowRect(rt);
+		CWnd *p=GetDlgItem(RIGHT_CTRL_IDS[i]);
+		p->GetWindowRect(rt);
 		ScreenToClient(rt);
 		if (left==0) left=rt.left;
 		TRACE("Top=%d,Bottom=%d,Left=%d,Right=%d\r\n",rt.top,rt.bottom,rt.left,rt.right);
 		rt.OffsetRect(cx-offset-left,0);
-		GetDlgItem(RIGHT_CTRL_IDS[i])->MoveWindow(rt);
+		p->MoveWindow(rt);
+		p->Invalidate();		//有残影要重绘
 	}
 	//移动树控件和列表框,两个宽度的原始比例为：184/597
 	//左边界开始为4，中间空5，右边界CX-139,底部空3
