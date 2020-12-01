@@ -13,7 +13,7 @@ public:
 	CSysSetDlg(	bool ParentShowHost,
 				char const *MstDriveStr,
 				int  MstColor,
-				BOOL MstShowDeskImg,
+				BOOL MstConsole,
 				BOOL MstFontSmooth,
 				BOOL MstThemes,
 				int  RadminColor,
@@ -37,7 +37,7 @@ public:
 	BOOL m_ParentShowHost;
 	CString m_MstDriveStr;
 	int m_MstColor;
-	BOOL m_MstShowDeskImg;
+	BOOL m_MstConsole;
 	BOOL m_MstFontSmooth;
 	BOOL m_MstThemes;
 	int m_RadminColor;

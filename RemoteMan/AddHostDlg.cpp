@@ -94,7 +94,8 @@ void CAddHostDlg::OnBnClickedOk()
 	str.Trim();
 	if (str.GetLength()>=sizeof(m_Host.Name))
 	{
-		MessageBox("主机名称超长","错误",MB_ICONERROR);
+		str.Format("主机名称设置错误,超过%d字节。",sizeof(m_Host.Name)-1);
+		MessageBox(str,"错误",MB_ICONERROR);
 		return;
 	}
 	strcpy_s(m_Host.Name,sizeof(m_Host.Name), str);
@@ -103,14 +104,15 @@ void CAddHostDlg::OnBnClickedOk()
 	str.Trim();
 	if (str.GetLength()>=sizeof(m_Host.HostAddress) || str.GetLength()<2)
 	{
-		MessageBox("主机地址设置错误","错误",MB_ICONERROR);
+		str.Format("主机地址设置错误,超过%d字节。",sizeof(m_Host.HostAddress)-1);
+		MessageBox(str,"错误",MB_ICONERROR);
 		return;
 	}
 	strcpy_s(m_Host.HostAddress, sizeof(m_Host.HostAddress), str);
 	if (m_Host.Name[0]==0) strcpy_s(m_Host.Name,sizeof(m_Host.Name),str);
 	//端口
 	m_Host.HostPort=GetDlgItemInt(IDC_EDIT_HOSTPORT);
-	if (m_Host.HostPort==0)
+	if (m_Host.HostPort==0 || m_Host.HostPort>=0x10000)
 	{
 		MessageBox("主机端口设置错误","错误",MB_ICONERROR);
 		return;
@@ -120,9 +122,10 @@ void CAddHostDlg::OnBnClickedOk()
 	//用户名
 	GetDlgItemText(IDC_EDIT_USER,str);
 	str.Trim();
-	if (str.GetLength()>=sizeof(m_Host.Account) || str.GetLength()<2)
+	if (str.GetLength()>=sizeof(m_Host.Account))
 	{
-		MessageBox("用户名设置错误","错误",MB_ICONERROR);
+		str.Format("用户名设置错误,超过%d字节。",sizeof(m_Host.Account)-1);
+		MessageBox(str,"错误",MB_ICONERROR);
 		return;
 	}
 	strcpy_s(m_Host.Account,sizeof(m_Host.Account),str);
@@ -130,7 +133,8 @@ void CAddHostDlg::OnBnClickedOk()
 	GetDlgItemText(IDC_EDIT_PASSWORD,str);
 	if (str.GetLength()>PASSWORD_MAXLEN)
 	{
-		MessageBox("用户密码设置错误","错误",MB_ICONERROR);
+		str.Format("用户密码错误,超过%d字节。",PASSWORD_MAXLEN);
+		MessageBox(str,"错误",MB_ICONERROR);
 		return;
 	}
 	strcpy_s(m_Host.Password,sizeof(m_Host.Password),str);
@@ -138,7 +142,8 @@ void CAddHostDlg::OnBnClickedOk()
 	GetDlgItemText(IDC_EDIT_README,str);
 	if (str.GetLength()>=sizeof(m_Host.ReadMe))
 	{
-		MessageBox("主机说明设置错误","错误",MB_ICONERROR);
+		str.Format("主机说明设置错误,超过%d字节。",sizeof(m_Host.ReadMe)-1);
+		MessageBox(str,"错误",MB_ICONERROR);
 		return;
 	}
 	strcpy_s(m_Host.ReadMe,sizeof(m_Host.ReadMe),str);

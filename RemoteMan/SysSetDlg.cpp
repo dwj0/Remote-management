@@ -12,13 +12,13 @@
 
 IMPLEMENT_DYNAMIC(CSysSetDlg, CDialogEx)
 
-CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,BOOL MstShowDeskImg,BOOL MstFontSmooth,	BOOL MstThemes,
+CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,BOOL MstConsole,BOOL MstFontSmooth,	BOOL MstThemes,
 	int RadminColor,char const *RadminPath,char const *SshPath, char const *VNCPath, char const *Format, int TimeOut, CWnd* pParent/*=NULL*/)
 	: CDialogEx(CSysSetDlg::IDD, pParent)
 	, m_ParentShowHost(ParentShowHost)
 	, m_MstDriveStr(MstDriveStr)
 	, m_MstColor(MstColor)
-	, m_MstShowDeskImg(MstShowDeskImg)
+	, m_MstConsole(MstConsole)
 	, m_MstFontSmooth(MstFontSmooth)
 	, m_MstThemes(MstThemes)
 	, m_RadminColor(RadminColor)
@@ -41,7 +41,7 @@ void CSysSetDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Check(pDX, IDC_CHECK_PARENT_SHOW_HOST, m_ParentShowHost);
 	DDX_CBIndex(pDX, IDC_COMBO_MST_COLOR, m_MstColor);
-	DDX_Check(pDX, IDC_CHECK_MST_SHOW_DISKIMG, m_MstShowDeskImg);
+	DDX_Check(pDX, IDC_CHECK_MST_CONSOLE, m_MstConsole);
 	DDX_Check(pDX, IDC_CHECK_MST_FONTSMOOTH, m_MstFontSmooth);
 	DDX_Check(pDX, IDC_CHECK_MST_THEMES, m_MstThemes);
 	DDX_CBIndex(pDX, IDC_COMBO_RADMIN_COLOR, m_RadminColor);
@@ -99,13 +99,14 @@ BOOL CSysSetDlg::OnInitDialog()
 void CSysSetDlg::OnBnClickedBtnChangePassword()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	char Src[20], New[20], Ack[20];
-	int n0=GetDlgItemText(IDC_EDIT_SRCPSAAWORD,Src,sizeof(Src)-1);
-	int n1=GetDlgItemText(IDC_EDIT_NEWPASSWORD,New,sizeof(New)-1);
-	GetDlgItemText(IDC_EDIT_ACKPASSWORD,Ack,sizeof(Ack)-1);
-	if (n1>PASSWORD_MAXLEN || strcmp(Ack,New)!=0)
+	char Src[128], New[PASSWORD_MAXLEN+2], Ack[PASSWORD_MAXLEN+2];
+	int n0=GetDlgItemText(IDC_EDIT_SRCPSAAWORD,Src,sizeof(Src));
+	int n1=GetDlgItemText(IDC_EDIT_NEWPASSWORD,New,sizeof(New));
+	GetDlgItemText(IDC_EDIT_ACKPASSWORD,Ack,sizeof(Ack));
+	if (n0>PASSWORD_MAXLEN || n1>PASSWORD_MAXLEN || strcmp(Ack,New)!=0)
 	{
-		MessageBox("新密码信息不正确或密码超过16字节!");
+		sprintf_s(Src,sizeof(Src),"新密码信息不正确或密码超过%d字节!",PASSWORD_MAXLEN);
+		MessageBox(Src,"错误",MB_ICONERROR);
 		return;
 	}
 	char const *Res = (char *)GetParent()->SendMessage(WM_MODIFY_PASSWORD_MESSAGE, WPARAM(Src),LPARAM(New));

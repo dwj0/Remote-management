@@ -9,6 +9,7 @@
 #include "SysSetDlg.h"
 #include "AddGroupDlg.h"
 #include "AddHostDlg.h"
+#include "dimedit.h"
 
 struct CONFIG_STRUCT{
 	int  DatabaseVer;
@@ -91,7 +92,7 @@ public:
 protected:
 	afx_msg LRESULT OnModifyPasswordMessage(WPARAM wParam, LPARAM lParam);
 public:
-	afx_msg void OnBnClickedCheckMstConsole();
+	afx_msg void OnBnClickedCheckMstShowWallpaper();
 	afx_msg void OnBnClickedCheckMstDrive();
 	afx_msg void OnBnClickedCheckMstAudio();
 	afx_msg void OnCbnSelchangeComboMstWinpos();
@@ -130,4 +131,6 @@ public:
 	afx_msg void OnBnClickedBtnSearch();
 	void DataBaseConversion(int Ver);
 	void OnMenuClickedVncListen(void);
+	CDimEdit m_SearchEdit;
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 };

@@ -56,17 +56,20 @@ ParentId int  not null,\r\n\
 CtrlMode int  not null,\r\n\
 HostAddress char(64) not null,\r\n\
 HostPort int not null,\r\n\
-Account char(20) not null,\r\n\
+Account char(32) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into %sConfigTab values(0, 0, 0, true, '', '', '', '', '', 500, true, true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
+insert into %sConfigTab values(0, 1, 0, true, '', '', '', '', '', 500, false, true,'',false,0,0,true, true, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
 
 //密码66字节说明：密码最大长度为32字节(16-31字节都是要扩充到32字节的)，使用ASCII存储=64字节
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
+
+//默认列表框宽度
+static int const ListDefColumnWidth[]={80,160,140,55,100,37};
 
 class CAboutDlg : public CDialogEx
 {
@@ -317,6 +320,7 @@ bool CRemoteManDlg::OpenUserDb(char const *DbPath)
 
 void CRemoteManDlg::DataBaseConversion(int Ver)
 {
+	int rc;
 	//当DatabaseVer=-1时，表明这个字段不存在，要添加，并同时添加VNCPath列和CheckOnlineTimeOut列。 另外，之前数据库保存的是GB2312编码，要转换成UTF8格式
 	if (SysConfig.DatabaseVer==-1)
 	{
@@ -328,7 +332,7 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 			"alter table ConfigTab add column CheckOnlineTimeOut int;"
 			"alter table ConfigTab add column VNCPath char(256);";
 		TRACE("%s\r\n",sqlstr);
-		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
 		//转换ConfigTab的编码
 		rc=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set RadminPath='%s',SSHPath='%s',VNCPath='%s' where id=0;",
 			SysConfig.RadminPath, SysConfig.SSHPath, SysConfig.VNCPath);
@@ -370,7 +374,7 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 		char sqlstr[1024]="alter table ConfigTab add column SSHParamFormat char(64);"
 			"update ConfigTab set DatabaseVer=1 where id=0;";
 		TRACE("%s\r\n",sqlstr);
-		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
 	}
 }
 
@@ -425,6 +429,7 @@ void CRemoteManDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_LIST1, m_List);
 	DDX_Control(pDX, IDC_TREE1, m_Tree);
+	DDX_Control(pDX, IDC_EDIT_SEARCH, m_SearchEdit);
 }
 
 BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
@@ -438,7 +443,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_DELGROUP, &CRemoteManDlg::OnMenuClickedDelGroup)
 	ON_BN_CLICKED(ID_MENU_ADDHOST, &CRemoteManDlg::OnMenuClickedAddHost)
 	ON_BN_CLICKED(ID_MENU_EDITHOST, &CRemoteManDlg::OnMenuClickedEditHost)
-	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedVncListen)
+	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedDelHost)
 	ON_BN_CLICKED(ID_MENU_CONNENT, &CRemoteManDlg::OnMenuClickedConnentHost)
 	ON_BN_CLICKED(ID_MENU_VNC_LISTEN,&CRemoteManDlg::OnMenuClickedVncListen)
 	ON_BN_CLICKED(ID_MENU_RENAMEGROUP, &CRemoteManDlg::OnMenuClickedRenameGroup)
@@ -447,7 +452,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
 	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
 	ON_BN_CLICKED(IDC_TOOLER_OPENSSH, &CRemoteManDlg::OnToolbarClickedOpenSSH)
-	ON_BN_CLICKED(IDC_CHECK_MST_CONSOLE, &CRemoteManDlg::OnBnClickedCheckMstConsole)
+	ON_BN_CLICKED(IDC_CHECK_MST_SHOW_WALLPAPER, &CRemoteManDlg::OnBnClickedCheckMstShowWallpaper)
 	ON_BN_CLICKED(IDC_CHECK_MST_DRIVE, &CRemoteManDlg::OnBnClickedCheckMstDrive)
 	ON_BN_CLICKED(IDC_CHECK_MST_AUDIO, &CRemoteManDlg::OnBnClickedCheckMstAudio)
 	ON_BN_CLICKED(IDC_CHECK_RADMIN_FULLSCREEN, &CRemoteManDlg::OnBnClickedCheckRadminFullscreen)
@@ -467,6 +472,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_WM_LBUTTONUP()
 	ON_BN_CLICKED(IDC_BTN_CHECK_ONLINE, &CRemoteManDlg::OnBnClickedBtnCheckOnline)
 	ON_BN_CLICKED(IDC_BTN_SEARCH, &CRemoteManDlg::OnBnClickedBtnSearch)
+	ON_WM_SIZE()
 END_MESSAGE_MAP()
 
 //TVN_ENDLABELEDIT 删除这行会不能设置断点，不信你试试
@@ -499,14 +505,14 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolBar.SetButtonText(3,"添加主机");
 	m_ToolBar.SetButtonText(4,"编辑主机");
 	m_ToolBar.SetButtonText(5,"删除主机");
-	m_ToolBar.SetButtonText(7,"连接");
+	m_ToolBar.SetButtonText(7,"连接主机");
 	m_ToolBar.SetButtonText(8,"远程桌面");
 	m_ToolBar.SetButtonText(9,"Radmin");
-	m_ToolBar.SetButtonText(10,"SecureCRT");
+	m_ToolBar.SetButtonText(10,"SSH软件");
 	m_ToolBar.SetButtonText(12,"设置");
 
 	m_ToolBar.GetToolBarCtrl().SetImageList(&m_ToolbarImageList);
-	m_ToolBar.SetSizes(CSize(72,56),CSize(20,34));
+	m_ToolBar.SetSizes(CSize(72,56),CSize(32,32));
 
 	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
 }
@@ -558,14 +564,14 @@ BOOL CRemoteManDlg::OnInitDialog()
 
 	m_List.SetExtendedStyle(LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES);
 	m_List.SetImageList(&m_ImageList,LVSIL_SMALL);
-	m_List.InsertColumn(0,"类型",LVCFMT_LEFT,80);
-	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,160);
-	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,140);
-	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,54);
-	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,100);
-	m_List.InsertColumn(5,"状态",LVCFMT_LEFT,36);
+	m_List.InsertColumn(0,"类型",LVCFMT_LEFT,ListDefColumnWidth[0]);
+	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,ListDefColumnWidth[1]);
+	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,ListDefColumnWidth[2]);
+	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,ListDefColumnWidth[3]);
+	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,ListDefColumnWidth[4]);
+	m_List.InsertColumn(5,"状态",LVCFMT_LEFT,ListDefColumnWidth[5]);
 
-	((CButton*)GetDlgItem(IDC_CHECK_MST_CONSOLE))->SetCheck(SysConfig.MstscConsole);
+	((CButton*)GetDlgItem(IDC_CHECK_MST_SHOW_WALLPAPER))->SetCheck(SysConfig.MstscDeskImg);
 	((CButton*)GetDlgItem(IDC_CHECK_MST_DRIVE))->SetCheck(SysConfig.MstscUseDrive);
 	((CButton*)GetDlgItem(IDC_CHECK_MST_AUDIO))->SetCheck(SysConfig.MstscRemoteAudio);
 	((CComboBox*)GetDlgItem(IDC_COMBO_MST_WINPOS))->SetCurSel(SysConfig.MstscWinpos);
@@ -576,6 +582,9 @@ BOOL CRemoteManDlg::OnInitDialog()
 	EnumTreeData(TVI_ROOT,0);
 	if (m_Tree.GetCount()==0)
 		SetDlgItemText(IDC_EDIT_README,"请先添加分组.");
+
+	m_SearchEdit.SetDimText("输入主机名或域名进行搜索");
+	m_SearchEdit.SetDimColor(RGB(150,150,250));
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -653,7 +662,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 	CSysSetDlg Dlg(SysConfig.ParentShowHost, 
 		SysConfig.MstscLocalDrive, 
 		SysConfig.MstscColor, 
-		SysConfig.MstscDeskImg,
+		SysConfig.MstscConsole,
 		SysConfig.MstscFontSmooth,
 		SysConfig.MstscThemes, 
 		SysConfig.RadminColor, 
@@ -671,7 +680,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 		strcpy_s(SysConfig.MstscLocalDrive,sizeof(SysConfig.MstscLocalDrive),Dlg.m_MstDriveStr);
 		strcpy_s(SysConfig.SSHParamFormat,sizeof(SysConfig.SSHParamFormat),Dlg.m_SSHFormat);
 		SysConfig.MstscColor=Dlg.m_MstColor;
-		SysConfig.MstscDeskImg=Dlg.m_MstShowDeskImg!=0;
+		SysConfig.MstscConsole=Dlg.m_MstConsole!=0;
 		SysConfig.MstscFontSmooth=Dlg.m_MstFontSmooth!=0;
 		SysConfig.MstscThemes=Dlg.m_MstThemes!=0;
 		SysConfig.RadminColor=Dlg.m_RadminColor;
@@ -680,7 +689,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 		char sqlstr[1024];
 		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',VNCPath='%s',"
 											  "SSHParamFormat='%s',CheckOnlineTimeOut=%d,MstscLocalDrive='%s',MstscColor=%d,"
-											  "MstscDeskImg=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
+											  "MstscConsole=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
 			SysConfig.ParentShowHost ? "true":"false",
 			SysConfig.RadminPath,
 			SysConfig.SSHPath,
@@ -689,7 +698,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 			SysConfig.CheckOnlineTimeOut,
 			SysConfig.MstscLocalDrive,
 			SysConfig.MstscColor,
-			SysConfig.MstscDeskImg ? "true":"false",
+			SysConfig.MstscConsole ? "true":"false",
 			SysConfig.MstscFontSmooth ? "true":"false",
 			SysConfig.MstscThemes ? "true":"false",
 			SysConfig.RadminColor
@@ -1010,7 +1019,12 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	//颜色位数
 	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"session bpp:i:%d\r\n",pConfig->MstscColor==0 ? 16:pConfig->MstscColor==1 ? 24:32);
 	//显示位置及窗口大小
-	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"winposstr:s:0,1,0,0,%d,%d\r\n",Width+40,Height+60);
+	int ScreenWidth= GetSystemMetrics(SM_CXFULLSCREEN);
+	int ScreenHeight= GetSystemMetrics(SM_CYFULLSCREEN);
+	int xPos = (ScreenWidth-Width-40)/2, yPos=(ScreenHeight-Height-40)/2;
+	if (xPos<0) xPos=0;
+	if (yPos<0) yPos=0;
+	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"winposstr:s:0,1,%d,%d,%d,%d\r\n",xPos,yPos,xPos+Width+40,yPos+Height+60);
 	//远程服务器地址
 	if (pHost->HostPort==3389)
 		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"full address:s:%s\r\n",pHost->HostAddress);
@@ -1071,6 +1085,12 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	//RDP密码加密数据
 	if (pHost->Password[0]!=0)
 		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"password 51:b:%s\r\n",CryptRDPPassword(pHost->Password,str));
+	//禁止网络质量自动检测
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"networkautodetect:i:0\r\n");
+	len+=sizeof("networkautodetect:i:0\r\n")-1;
+	//指定连接类型为局域网10M或更高
+	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"connection type:i:6\r\n");
+	len+=sizeof("connection type:i:6\r\n")-1;
 	//是否禁止显示桌面背景
 	len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"disable wallpaper:i:%d\r\n",pConfig->MstscDeskImg?0:1);
 	//是否禁止主题
@@ -1229,7 +1249,7 @@ void CRemoteManDlg::OnMenuClickedVncListen(void)
 void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
 	//查看文件是否存在
-	char str[MAX_PATH];
+	char str[MAX_PATH*2];
 	CFileStatus fstatus;
 	if (strstr(pConfig->SSHPath,".exe")==NULL || !CFile::GetStatus(pConfig->SSHPath,fstatus))
 	{
@@ -1460,13 +1480,13 @@ afx_msg LRESULT CRemoteManDlg::OnModifyPasswordMessage(WPARAM wParam, LPARAM lPa
 	return LRESULT("密码修改成功.");
 }
 
-void CRemoteManDlg::OnBnClickedCheckMstConsole()
+void CRemoteManDlg::OnBnClickedCheckMstShowWallpaper()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	SysConfig.MstscConsole=((CButton*)GetDlgItem(IDC_CHECK_MST_CONSOLE))->GetCheck()!=0;
+	SysConfig.MstscDeskImg=((CButton*)GetDlgItem(IDC_CHECK_MST_SHOW_WALLPAPER))->GetCheck()!=0;
 
 	char sqlstr[128];
-	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set MstscConsole=%s where id=0;",SysConfig.MstscConsole?"true":"false");
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set MstscDeskImg=%s where id=0;",SysConfig.MstscDeskImg?"true":"false");
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
 }
@@ -1899,7 +1919,7 @@ void CRemoteManDlg::OnBnClickedBtnSearch()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	char str[64],sqlstr[512];
-	if (GetDlgItemText(IDC_EDIT_SEARCH, str, sizeof(str)-1)==0) return;
+	if (GetDlgItemText(IDC_EDIT_SEARCH, str, sizeof(str)-1)==0 || m_Tree.GetCount()==0) return;
 	CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
 	HostArray.SetSize(0,20);
 	if (strcmp(str,"*")==0)
@@ -1919,3 +1939,84 @@ void CRemoteManDlg::OnBnClickedBtnSearch()
 }
 
 
+void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
+{
+	//右侧控件位置表，只要改变左右位置即可
+	static int const RIGHT_CTRL_IDS[]={
+		IDC_STATIC_PIC,IDC_BTN_CHECK_ONLINE,
+		IDC_STATIC_GROUP1,IDC_CHECK_MST_SHOW_WALLPAPER,IDC_CHECK_MST_DRIVE,IDC_CHECK_MST_AUDIO,
+		IDC_STATIC1,IDC_COMBO_MST_WINPOS,IDC_STATIC_GROUP2,IDC_CHECK_RADMIN_FULLSCREEN,
+		IDC_STATIC2,IDC_COMBO_RADMIN_CTRLMODE};
+	static int Mincx,Mincy;
+	CDialogEx::OnSize(nType, cx, cy);
+
+	// TODO: 在此处添加消息处理程序代码
+	TRACE("nType=%d,cx=%d,cy=%d\r\n",nType,cx,cy);
+	if (nType==1) return;		//最小化
+	//不能小于最小尺寸
+	if (Mincx==0) 
+	{
+		Mincx=cx,Mincy=cy;
+		return;				//第一次进入子控件还没创建呢
+	}
+	if (cx<Mincx) cx=Mincx;
+	if (cy<Mincy) cy=Mincy;
+	if (m_hWnd==NULL) return;
+	//移动右侧控件位置
+	//得到第一个控件的左侧位置，其它控件对应这个位置做偏差
+	CRect rt;
+	int left=0;
+	int const offset=96;	//第一个控件的位置相对右边为96
+	for (int i=0; i<sizeof(RIGHT_CTRL_IDS)/sizeof(RIGHT_CTRL_IDS[0]); i++)
+	{
+		GetDlgItem(RIGHT_CTRL_IDS[i])->GetWindowRect(rt);
+		ScreenToClient(rt);
+		if (left==0) left=rt.left;
+		TRACE("Top=%d,Bottom=%d,Left=%d,Right=%d\r\n",rt.top,rt.bottom,rt.left,rt.right);
+		rt.OffsetRect(cx-offset-left,0);
+		GetDlgItem(RIGHT_CTRL_IDS[i])->MoveWindow(rt);
+	}
+	//移动树控件和列表框,两个宽度的原始比例为：184/597
+	//左边界开始为4，中间空5，右边界CX-139,底部空3
+	GetDlgItem(IDC_TREE1)->GetWindowRect(rt);
+	ScreenToClient(rt);
+	int TreeWidth=(cx-148)*184/(184+597);
+	rt.right=rt.left+TreeWidth;
+	rt.bottom=cy-3;
+	GetDlgItem(IDC_TREE1)->MoveWindow(rt);
+	//列表框,底部空136
+	rt.left=rt.right+5;
+	rt.right=cx-139;
+	rt.bottom=cy-136;
+	GetDlgItem(IDC_LIST1)->MoveWindow(rt);
+	int ListWidth=rt.right-rt.left-25;		//25:滚动条宽度
+	//调整列宽
+	int Sum=0;
+	for (int i=0; i<sizeof(ListDefColumnWidth)/sizeof(ListDefColumnWidth[0]); i++)
+		Sum+=ListDefColumnWidth[i];
+	for (int i=0; i<sizeof(ListDefColumnWidth)/sizeof(ListDefColumnWidth[0]); i++)
+		m_List.SetColumnWidth(i,ListWidth*ListDefColumnWidth[i]/Sum);
+
+	//用于搜索的两个控件,底部偏差：104, 上部空：7, 编辑框右边空:109
+	rt.right-=109;
+	rt.top=rt.bottom+7;
+	rt.bottom=rt.top+25;		//高度为25
+	m_SearchEdit.MoveWindow(rt);
+	//按钮
+	rt.left=rt.right+12;
+	rt.right=rt.left+88;
+	GetDlgItem(IDC_BTN_SEARCH)->MoveWindow(rt);
+
+	//主机说明的组控件,
+	rt.left=4+TreeWidth+5;
+	rt.right=cx-139;
+	rt.top=cy-98;
+	rt.bottom=cy-3;
+	GetDlgItem(IDC_STATIC_GROUP3)->MoveWindow(rt);
+	//主机说明的EDIT控件
+	rt.left+=12;
+	rt.right-=13;
+	rt.top+=23;
+	rt.bottom-=12;
+	GetDlgItem(IDC_EDIT_README)->MoveWindow(rt);
+}

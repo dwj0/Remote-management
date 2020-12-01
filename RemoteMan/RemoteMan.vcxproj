@@ -123,6 +123,7 @@
     <ClInclude Include="AddHostDlg.h" />
     <ClInclude Include="Aes.h" />
     <ClInclude Include="CodeConverter.h" />
+    <ClInclude Include="DimEdit.h" />
     <ClInclude Include="FileDialogEx.h" />
     <ClInclude Include="InputPasswordDlg.h" />
     <ClInclude Include="RemoteMan.h" />
@@ -137,6 +138,7 @@
     <ClCompile Include="AddHostDlg.cpp" />
     <ClCompile Include="Aes.cpp" />
     <ClCompile Include="CodeConverter.cpp" />
+    <ClCompile Include="DimEdit.cpp" />
     <ClCompile Include="FileDialogEx.cpp" />
     <ClCompile Include="InputPasswordDlg.cpp" />
     <ClCompile Include="RemoteMan.cpp" />
