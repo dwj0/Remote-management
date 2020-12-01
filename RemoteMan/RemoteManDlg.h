@@ -91,7 +91,7 @@ public:
 protected:
 	afx_msg LRESULT OnModifyPasswordMessage(WPARAM wParam, LPARAM lParam);
 public:
-	afx_msg void OnBnClickedCheckMstConsole();
+	afx_msg void OnBnClickedCheckMstShowWallpaper();
 	afx_msg void OnBnClickedCheckMstDrive();
 	afx_msg void OnBnClickedCheckMstAudio();
 	afx_msg void OnCbnSelchangeComboMstWinpos();

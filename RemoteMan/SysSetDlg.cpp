@@ -12,13 +12,13 @@
 
 IMPLEMENT_DYNAMIC(CSysSetDlg, CDialogEx)
 
-CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,BOOL MstShowDeskImg,BOOL MstFontSmooth,	BOOL MstThemes,
+CSysSetDlg::CSysSetDlg(bool ParentShowHost,char const *MstDriveStr,int MstColor,BOOL MstConsole,BOOL MstFontSmooth,	BOOL MstThemes,
 	int RadminColor,char const *RadminPath,char const *SshPath, char const *VNCPath, char const *Format, int TimeOut, CWnd* pParent/*=NULL*/)
 	: CDialogEx(CSysSetDlg::IDD, pParent)
 	, m_ParentShowHost(ParentShowHost)
 	, m_MstDriveStr(MstDriveStr)
 	, m_MstColor(MstColor)
-	, m_MstShowDeskImg(MstShowDeskImg)
+	, m_MstConsole(MstConsole)
 	, m_MstFontSmooth(MstFontSmooth)
 	, m_MstThemes(MstThemes)
 	, m_RadminColor(RadminColor)
@@ -41,7 +41,7 @@ void CSysSetDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Check(pDX, IDC_CHECK_PARENT_SHOW_HOST, m_ParentShowHost);
 	DDX_CBIndex(pDX, IDC_COMBO_MST_COLOR, m_MstColor);
-	DDX_Check(pDX, IDC_CHECK_MST_SHOW_DISKIMG, m_MstShowDeskImg);
+	DDX_Check(pDX, IDC_CHECK_MST_CONSOLE, m_MstConsole);
 	DDX_Check(pDX, IDC_CHECK_MST_FONTSMOOTH, m_MstFontSmooth);
 	DDX_Check(pDX, IDC_CHECK_MST_THEMES, m_MstThemes);
 	DDX_CBIndex(pDX, IDC_COMBO_RADMIN_COLOR, m_RadminColor);

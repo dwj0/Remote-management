@@ -60,7 +60,7 @@ Account char(32) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into %sConfigTab values(0, 0, 0, true, '', '', '', '', '', 500, true, true,'',false,0,0,false, false, true, 0, true, 1);\r\n\
+insert into %sConfigTab values(0, 1, 0, true, '', '', '', '', '', 500, false, true,'',false,0,0,true, true, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
@@ -317,6 +317,7 @@ bool CRemoteManDlg::OpenUserDb(char const *DbPath)
 
 void CRemoteManDlg::DataBaseConversion(int Ver)
 {
+	int rc;
 	//当DatabaseVer=-1时，表明这个字段不存在，要添加，并同时添加VNCPath列和CheckOnlineTimeOut列。 另外，之前数据库保存的是GB2312编码，要转换成UTF8格式
 	if (SysConfig.DatabaseVer==-1)
 	{
@@ -328,7 +329,7 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 			"alter table ConfigTab add column CheckOnlineTimeOut int;"
 			"alter table ConfigTab add column VNCPath char(256);";
 		TRACE("%s\r\n",sqlstr);
-		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
 		//转换ConfigTab的编码
 		rc=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set RadminPath='%s',SSHPath='%s',VNCPath='%s' where id=0;",
 			SysConfig.RadminPath, SysConfig.SSHPath, SysConfig.VNCPath);
@@ -370,7 +371,7 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 		char sqlstr[1024]="alter table ConfigTab add column SSHParamFormat char(64);"
 			"update ConfigTab set DatabaseVer=1 where id=0;";
 		TRACE("%s\r\n",sqlstr);
-		int rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
 	}
 }
 
@@ -447,7 +448,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
 	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
 	ON_BN_CLICKED(IDC_TOOLER_OPENSSH, &CRemoteManDlg::OnToolbarClickedOpenSSH)
-	ON_BN_CLICKED(IDC_CHECK_MST_CONSOLE, &CRemoteManDlg::OnBnClickedCheckMstConsole)
+	ON_BN_CLICKED(IDC_CHECK_MST_SHOW_WALLPAPER, &CRemoteManDlg::OnBnClickedCheckMstShowWallpaper)
 	ON_BN_CLICKED(IDC_CHECK_MST_DRIVE, &CRemoteManDlg::OnBnClickedCheckMstDrive)
 	ON_BN_CLICKED(IDC_CHECK_MST_AUDIO, &CRemoteManDlg::OnBnClickedCheckMstAudio)
 	ON_BN_CLICKED(IDC_CHECK_RADMIN_FULLSCREEN, &CRemoteManDlg::OnBnClickedCheckRadminFullscreen)
@@ -565,7 +566,7 @@ BOOL CRemoteManDlg::OnInitDialog()
 	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,100);
 	m_List.InsertColumn(5,"状态",LVCFMT_LEFT,36);
 
-	((CButton*)GetDlgItem(IDC_CHECK_MST_CONSOLE))->SetCheck(SysConfig.MstscConsole);
+	((CButton*)GetDlgItem(IDC_CHECK_MST_SHOW_WALLPAPER))->SetCheck(SysConfig.MstscDeskImg);
 	((CButton*)GetDlgItem(IDC_CHECK_MST_DRIVE))->SetCheck(SysConfig.MstscUseDrive);
 	((CButton*)GetDlgItem(IDC_CHECK_MST_AUDIO))->SetCheck(SysConfig.MstscRemoteAudio);
 	((CComboBox*)GetDlgItem(IDC_COMBO_MST_WINPOS))->SetCurSel(SysConfig.MstscWinpos);
@@ -653,7 +654,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 	CSysSetDlg Dlg(SysConfig.ParentShowHost, 
 		SysConfig.MstscLocalDrive, 
 		SysConfig.MstscColor, 
-		SysConfig.MstscDeskImg,
+		SysConfig.MstscConsole,
 		SysConfig.MstscFontSmooth,
 		SysConfig.MstscThemes, 
 		SysConfig.RadminColor, 
@@ -671,7 +672,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 		strcpy_s(SysConfig.MstscLocalDrive,sizeof(SysConfig.MstscLocalDrive),Dlg.m_MstDriveStr);
 		strcpy_s(SysConfig.SSHParamFormat,sizeof(SysConfig.SSHParamFormat),Dlg.m_SSHFormat);
 		SysConfig.MstscColor=Dlg.m_MstColor;
-		SysConfig.MstscDeskImg=Dlg.m_MstShowDeskImg!=0;
+		SysConfig.MstscConsole=Dlg.m_MstConsole!=0;
 		SysConfig.MstscFontSmooth=Dlg.m_MstFontSmooth!=0;
 		SysConfig.MstscThemes=Dlg.m_MstThemes!=0;
 		SysConfig.RadminColor=Dlg.m_RadminColor;
@@ -680,7 +681,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 		char sqlstr[1024];
 		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',VNCPath='%s',"
 											  "SSHParamFormat='%s',CheckOnlineTimeOut=%d,MstscLocalDrive='%s',MstscColor=%d,"
-											  "MstscDeskImg=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
+											  "MstscConsole=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
 			SysConfig.ParentShowHost ? "true":"false",
 			SysConfig.RadminPath,
 			SysConfig.SSHPath,
@@ -689,7 +690,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 			SysConfig.CheckOnlineTimeOut,
 			SysConfig.MstscLocalDrive,
 			SysConfig.MstscColor,
-			SysConfig.MstscDeskImg ? "true":"false",
+			SysConfig.MstscConsole ? "true":"false",
 			SysConfig.MstscFontSmooth ? "true":"false",
 			SysConfig.MstscThemes ? "true":"false",
 			SysConfig.RadminColor
@@ -1471,13 +1472,13 @@ afx_msg LRESULT CRemoteManDlg::OnModifyPasswordMessage(WPARAM wParam, LPARAM lPa
 	return LRESULT("密码修改成功.");
 }
 
-void CRemoteManDlg::OnBnClickedCheckMstConsole()
+void CRemoteManDlg::OnBnClickedCheckMstShowWallpaper()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	SysConfig.MstscConsole=((CButton*)GetDlgItem(IDC_CHECK_MST_CONSOLE))->GetCheck()!=0;
+	SysConfig.MstscDeskImg=((CButton*)GetDlgItem(IDC_CHECK_MST_SHOW_WALLPAPER))->GetCheck()!=0;
 
 	char sqlstr[128];
-	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set MstscConsole=%s where id=0;",SysConfig.MstscConsole?"true":"false");
+	int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set MstscDeskImg=%s where id=0;",SysConfig.MstscDeskImg?"true":"false");
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
 }
@@ -1928,5 +1929,3 @@ void CRemoteManDlg::OnBnClickedBtnSearch()
 		ListAddHost(&Host,Host.Id);
 	}
 }
-
-
