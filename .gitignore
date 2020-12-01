@@ -17,7 +17,6 @@ Thumbs.db
 # Compiled Dynamic libraries
 
 # Executables
-*.exe
 *.out
 *.app
 
