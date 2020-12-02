@@ -2023,7 +2023,6 @@ void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
 		TRACE("Top=%d,Bottom=%d,Left=%d,Right=%d\r\n",rt.top,rt.bottom,rt.left,rt.right);
 		rt.OffsetRect(cx-offset-left,0);
 		p->MoveWindow(rt);
-		p->Invalidate();		//有残影要重绘
 	}
 	//移动树控件和列表框,两个宽度的原始比例为：184/597
 	//左边界开始为4，中间空5，右边界CX-139,底部空3
@@ -2068,4 +2067,6 @@ void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
 	rt.top+=23;
 	rt.bottom-=12;
 	GetDlgItem(IDC_EDIT_README)->MoveWindow(rt);
+	//
+	Invalidate();		//有残影要重绘
 }
