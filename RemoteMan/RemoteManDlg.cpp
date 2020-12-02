@@ -853,17 +853,18 @@ void CRemoteManDlg::OnMenuClickedAddHost(void)
 	Dlg.DoModal();
 }
 
-void CRemoteManDlg::ListAddHost(HOST_STRUCT const * pHost, int Id)
+void CRemoteManDlg::ListAddHost(HOST_STRUCT const * pHost, int Id, int nItem)
 {
 	char str[12];
-	int n=m_List.GetItemCount();
-	m_List.InsertItem(n, CTRL_MODE[pHost->CtrlMode],2+pHost->CtrlMode);
-	m_List.SetItemText(n, 1, pHost->Name);
-	m_List.SetItemText(n, 2, pHost->HostAddress);
+	if (nItem==-1)
+		nItem=m_List.GetItemCount();
+	m_List.InsertItem(nItem, CTRL_MODE[pHost->CtrlMode],2+pHost->CtrlMode);
+	m_List.SetItemText(nItem, 1, pHost->Name);
+	m_List.SetItemText(nItem, 2, pHost->HostAddress);
 	sprintf_s(str,sizeof(str),"%d",pHost->HostPort);
-	m_List.SetItemText(n, 3, str);
-	m_List.SetItemText(n, 4, pHost->Account);
-	m_List.SetItemData(n,Id);
+	m_List.SetItemText(nItem, 3, str);
+	m_List.SetItemText(nItem, 4, pHost->Account);
+	m_List.SetItemData(nItem,Id);
 }
 
 void CRemoteManDlg::OnMenuClickedEditHost(void)
@@ -1651,37 +1652,83 @@ void CRemoteManDlg::OnLButtonUp(UINT nFlags, CPoint point)
 	CPoint pt(point); 
 	ClientToScreen(&pt); 
 	CWnd *pWnd = WindowFromPoint(pt); 
-	if (pWnd!=&m_Tree) return;
-	m_Tree.ScreenToClient(&pt);
-	HTREEITEM hItem=m_Tree.HitTest(pt, &nFlags); //用于获取拖入处的Item
-	if (hItem == NULL)  return;
-
-	//列出选择的项和ID
-	int Cnt=m_List.GetSelectedCount();
-	if (Cnt==0) return;
-	int *Ids=new int[Cnt];
-	POSITION pos=m_List.GetFirstSelectedItemPosition();
-	for (int i=0; pos!=NULL && i<Cnt; i++)
+	if (pWnd==&m_List)
 	{
-		int n=m_List.GetNextSelectedItem(pos);
-		Ids[i]=m_List.GetItemData(n);
+		//拖动到的位置m, 拖动项n
+		m_List.ScreenToClient(&pt);
+		int m=m_List.HitTest(pt,&nFlags);
+		if (m==-1) m=m_List.GetItemCount()-1;
+		if (m_List.GetSelectedCount()!=1)
+		{
+			MessageBox("当前只支持单项拖动排序。","错误",MB_ICONERROR);
+			return;
+		}
+		int n=m_List.GetSelectionMark();
+		TRACE("从%d拖动到%d\r\n",n,m);
+		//先读取出选中的主机
+		int nId=m_List.GetItemData(n);
+		CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
+		char sqlstr[128];
+		int rc=sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where id=%d;",nId);
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
+		//读取最大的ID，临时ID使用MaxID+1
+		int MaxId=0;
+		strcpy_s(sqlstr,sizeof(sqlstr),"select max(id) from HostTab;");
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &MaxId, NULL);
+		//更新数据库
+		//先将拖动到的项设置为一个临时ID
+		rc = sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set id=%d where id=%d",MaxId+1,nId);
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		//循环更改
+		for (int k=n; k!=m;)
+		{
+			k+=n>=m ? -1:1;		//下一个的方向
+			int tmpId=m_List.GetItemData(k);
+			m_List.SetItemData(k,nId);
+			rc = sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set id=%d where id=%d",nId,tmpId);
+			TRACE("%s\r\n",sqlstr);
+			rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+			nId=tmpId;
+		}
+		//还原拖动项的ID
+		rc = sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set id=%d where id=%d",nId,MaxId+1);
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		//列表框删除后重新添加
+		m_List.DeleteItem(n);
+		ListAddHost(&HostArray[0],nId,m);
 	}
-	//更新数据库
-	int ParentId = m_Tree.GetItemData(hItem);
-	int sqlstrlen=44+17*Cnt;
-	char *sqlstr=new char[44+17*Cnt];
-	int len=sprintf_s(sqlstr,sqlstrlen,"update HostTab set ParentId=%d where ",ParentId);
-	for (int i=0; i<Cnt; i++)
-		len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d" : " or id=%d",Ids[i]);
-	sqlstr[len++]=';';
-	sqlstr[len]=0;
-	TRACE("%s\r\n",sqlstr);
-	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
-	//
-	delete Ids;
-	delete sqlstr;
-	//重新选择树hItem
-	m_Tree.SelectItem(hItem);
+	else if (pWnd==&m_Tree) 
+	{
+		m_Tree.ScreenToClient(&pt);
+		HTREEITEM hItem=m_Tree.HitTest(pt, &nFlags); //用于获取拖入处的Item
+		if (hItem == NULL)  return;
+
+		int Cnt=m_List.GetSelectedCount();
+		if (Cnt==0) return;
+		//更新数据库
+		int ParentId = m_Tree.GetItemData(hItem);
+		int sqlstrlen=44+17*Cnt;
+		char *sqlstr=new char[sqlstrlen];
+		int len=sprintf_s(sqlstr,sqlstrlen,"update HostTab set ParentId=%d where ",ParentId);
+		POSITION pos=m_List.GetFirstSelectedItemPosition();
+		for (int i=0; pos!=NULL && i<Cnt; i++)
+		{
+			int n=m_List.GetNextSelectedItem(pos);
+			len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d" : " or id=%d",m_List.GetItemData(n));
+		}
+		sqlstr[len++]=';';
+		sqlstr[len]=0;
+		TRACE("%s\r\n",sqlstr);
+		int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		//
+		delete sqlstr;
+		//重新选择树hItem
+		m_Tree.SelectItem(hItem);
+	}
 }
 
 void CRemoteManDlg::OnMenuClickedExportGroup(void)
