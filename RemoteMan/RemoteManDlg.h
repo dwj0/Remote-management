@@ -133,4 +133,5 @@ public:
 	void OnMenuClickedVncListen(void);
 	CDimEdit m_SearchEdit;
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
 };

@@ -473,6 +473,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_CHECK_ONLINE, &CRemoteManDlg::OnBnClickedBtnCheckOnline)
 	ON_BN_CLICKED(IDC_BTN_SEARCH, &CRemoteManDlg::OnBnClickedBtnSearch)
 	ON_WM_SIZE()
+	ON_WM_SETTINGCHANGE()
 END_MESSAGE_MAP()
 
 //TVN_ENDLABELEDIT 删除这行会不能设置断点，不信你试试
@@ -514,7 +515,9 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolBar.GetToolBarCtrl().SetImageList(&m_ToolbarImageList);
 	m_ToolBar.SetSizes(CSize(72,56),CSize(32,32));
 
-	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
+	m_ToolBar.MoveWindow(CRect(0,-1,760,62));	//移动工具栏在父窗口的位置
+	m_ToolBar.ShowWindow(SW_SHOW);				//显示工具栏
+//	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
 }
 
 BOOL CRemoteManDlg::OnInitDialog()
@@ -2069,4 +2072,12 @@ void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
 	GetDlgItem(IDC_EDIT_README)->MoveWindow(rt);
 	//
 	Invalidate();		//有残影要重绘
+}
+
+
+void CRemoteManDlg::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
+{
+//	CDialogEx::OnSettingChange(uFlags, lpszSection); //避免系统设置改变时工具栏的大小被改变
+
+	// TODO: 在此处添加消息处理程序代码
 }
