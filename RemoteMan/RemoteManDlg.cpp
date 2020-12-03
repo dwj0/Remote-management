@@ -944,30 +944,25 @@ void CRemoteManDlg::OnMenuClickedDelHost(void)
 	int Cnt=m_List.GetSelectedCount();
 	if (Cnt==0) return;
 	int *Sels=new int[Cnt];
-	int *Ids=new int[Cnt];
-	//列出选择的项和ID
+	//列出选择的项,删除数据库
+	int sqlstrlen=30+Cnt*17;
+	char *sqlstr=new char[sqlstrlen];
+	int len=sprintf_s(sqlstr,sqlstrlen,"delete from HostTab where ");
 	POSITION  pos=m_List.GetFirstSelectedItemPosition();
 	for (int i=0; pos!=NULL && i<Cnt; i++)
 	{
 		Sels[i]=m_List.GetNextSelectedItem(pos);
-		Ids[i]=m_List.GetItemData(Sels[i]);
+		len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d":" or id=%d",m_List.GetItemData(Sels[i]));
 	}
-	//从后开始删除列表
-	for (int i=Cnt-1; i>=0; i--)
-		m_List.DeleteItem(Sels[i]);
-	//删除数据库
-	int sqlstrlen=30+Cnt*17;
-	char *sqlstr=new char[sqlstrlen];
-	int len=sprintf_s(sqlstr,sqlstrlen,"delete from HostTab where ");
-	for (int i=0; i<Cnt; i++)
-		len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d":" or id=%d",Ids[i]);
 	sqlstr[len]=';';
 	sqlstr[len+1]=0;
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	//从后开始删除列表
+	for (int i=Cnt-1; i>=0; i--)
+		m_List.DeleteItem(Sels[i]);
 	//
 	delete Sels;
-	delete Ids;
 	delete sqlstr;
 }
 
@@ -1205,7 +1200,7 @@ void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 		return;
 	}
 	char str1[100],str2[512];
-	//启动Radmin连接服务器
+	//启动VNC连接服务器
 	sprintf_s(str1,sizeof(str1),"%s:%d",pHost->HostAddress,pHost->HostPort);
 	if (pConfig->RadminFullScreen)
 		sprintf_s(str2,sizeof(str2),"%s -FullScreen %s",VNCPath,str1);
@@ -1667,6 +1662,7 @@ void CRemoteManDlg::OnLButtonUp(UINT nFlags, CPoint point)
 			return;
 		}
 		int n=m_List.GetSelectionMark();
+		if (n==m) return;
 		TRACE("从%d拖动到%d\r\n",n,m);
 		//先读取出选中的主机
 		int nId=m_List.GetItemData(n);
@@ -1675,6 +1671,7 @@ void CRemoteManDlg::OnLButtonUp(UINT nFlags, CPoint point)
 		int rc=sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where id=%d;",nId);
 		TRACE("%s\r\n",sqlstr);
 		rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
+		if (HostArray.GetSize()!=1) return;
 		//读取最大的ID，临时ID使用MaxID+1
 		int MaxId=0;
 		strcpy_s(sqlstr,sizeof(sqlstr),"select max(id) from HostTab;");
@@ -2011,20 +2008,17 @@ void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
 	}
 	if (cx<Mincx) cx=Mincx;
 	if (cy<Mincy) cy=Mincy;
-	if (m_hWnd==NULL) return;
 	//移动右侧控件位置
-	//得到第一个控件的左侧位置，其它控件对应这个位置做偏差
 	CRect rt;
-	int left=0;
-	int const offset=96;	//第一个控件的位置相对右边为96
+	int offset=INT_MAX;
 	for (int i=0; i<sizeof(RIGHT_CTRL_IDS)/sizeof(RIGHT_CTRL_IDS[0]); i++)
 	{
 		CWnd *p=GetDlgItem(RIGHT_CTRL_IDS[i]);
 		p->GetWindowRect(rt);
 		ScreenToClient(rt);
-		if (left==0) left=rt.left;
-		TRACE("Top=%d,Bottom=%d,Left=%d,Right=%d\r\n",rt.top,rt.bottom,rt.left,rt.right);
-		rt.OffsetRect(cx-offset-left,0);
+		if (offset==INT_MAX) offset=cx-96-rt.left;	//第一个控件的位置相对右边为96
+	//	TRACE("Top=%d,Bottom=%d,Left=%d,Right=%d\r\n",rt.top,rt.bottom,rt.left,rt.right);
+		rt.OffsetRect(offset,0);
 		p->MoveWindow(rt);
 	}
 	//移动树控件和列表框,两个宽度的原始比例为：184/597
