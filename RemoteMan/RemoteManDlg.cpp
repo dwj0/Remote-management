@@ -473,6 +473,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_CHECK_ONLINE, &CRemoteManDlg::OnBnClickedBtnCheckOnline)
 	ON_BN_CLICKED(IDC_BTN_SEARCH, &CRemoteManDlg::OnBnClickedBtnSearch)
 	ON_WM_SIZE()
+	ON_WM_SETTINGCHANGE()
 END_MESSAGE_MAP()
 
 //TVN_ENDLABELEDIT 删除这行会不能设置断点，不信你试试
@@ -514,7 +515,9 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolBar.GetToolBarCtrl().SetImageList(&m_ToolbarImageList);
 	m_ToolBar.SetSizes(CSize(72,56),CSize(32,32));
 
-	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
+	m_ToolBar.MoveWindow(CRect(0,-1,760,62));	//移动工具栏在父窗口的位置
+	m_ToolBar.ShowWindow(SW_SHOW);				//显示工具栏
+//	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
 }
 
 BOOL CRemoteManDlg::OnInitDialog()
@@ -853,17 +856,18 @@ void CRemoteManDlg::OnMenuClickedAddHost(void)
 	Dlg.DoModal();
 }
 
-void CRemoteManDlg::ListAddHost(HOST_STRUCT const * pHost, int Id)
+void CRemoteManDlg::ListAddHost(HOST_STRUCT const * pHost, int Id, int nItem)
 {
 	char str[12];
-	int n=m_List.GetItemCount();
-	m_List.InsertItem(n, CTRL_MODE[pHost->CtrlMode],2+pHost->CtrlMode);
-	m_List.SetItemText(n, 1, pHost->Name);
-	m_List.SetItemText(n, 2, pHost->HostAddress);
+	if (nItem==-1)
+		nItem=m_List.GetItemCount();
+	m_List.InsertItem(nItem, CTRL_MODE[pHost->CtrlMode],2+pHost->CtrlMode);
+	m_List.SetItemText(nItem, 1, pHost->Name);
+	m_List.SetItemText(nItem, 2, pHost->HostAddress);
 	sprintf_s(str,sizeof(str),"%d",pHost->HostPort);
-	m_List.SetItemText(n, 3, str);
-	m_List.SetItemText(n, 4, pHost->Account);
-	m_List.SetItemData(n,Id);
+	m_List.SetItemText(nItem, 3, str);
+	m_List.SetItemText(nItem, 4, pHost->Account);
+	m_List.SetItemData(nItem,Id);
 }
 
 void CRemoteManDlg::OnMenuClickedEditHost(void)
@@ -940,30 +944,25 @@ void CRemoteManDlg::OnMenuClickedDelHost(void)
 	int Cnt=m_List.GetSelectedCount();
 	if (Cnt==0) return;
 	int *Sels=new int[Cnt];
-	int *Ids=new int[Cnt];
-	//列出选择的项和ID
+	//列出选择的项,删除数据库
+	int sqlstrlen=30+Cnt*17;
+	char *sqlstr=new char[sqlstrlen];
+	int len=sprintf_s(sqlstr,sqlstrlen,"delete from HostTab where ");
 	POSITION  pos=m_List.GetFirstSelectedItemPosition();
 	for (int i=0; pos!=NULL && i<Cnt; i++)
 	{
 		Sels[i]=m_List.GetNextSelectedItem(pos);
-		Ids[i]=m_List.GetItemData(Sels[i]);
+		len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d":" or id=%d",m_List.GetItemData(Sels[i]));
 	}
-	//从后开始删除列表
-	for (int i=Cnt-1; i>=0; i--)
-		m_List.DeleteItem(Sels[i]);
-	//删除数据库
-	int sqlstrlen=30+Cnt*17;
-	char *sqlstr=new char[sqlstrlen];
-	int len=sprintf_s(sqlstr,sqlstrlen,"delete from HostTab where ");
-	for (int i=0; i<Cnt; i++)
-		len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d":" or id=%d",Ids[i]);
 	sqlstr[len]=';';
 	sqlstr[len+1]=0;
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	//从后开始删除列表
+	for (int i=Cnt-1; i>=0; i--)
+		m_List.DeleteItem(Sels[i]);
 	//
 	delete Sels;
-	delete Ids;
 	delete sqlstr;
 }
 
@@ -1201,7 +1200,7 @@ void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 		return;
 	}
 	char str1[100],str2[512];
-	//启动Radmin连接服务器
+	//启动VNC连接服务器
 	sprintf_s(str1,sizeof(str1),"%s:%d",pHost->HostAddress,pHost->HostPort);
 	if (pConfig->RadminFullScreen)
 		sprintf_s(str2,sizeof(str2),"%s -FullScreen %s",VNCPath,str1);
@@ -1651,37 +1650,85 @@ void CRemoteManDlg::OnLButtonUp(UINT nFlags, CPoint point)
 	CPoint pt(point); 
 	ClientToScreen(&pt); 
 	CWnd *pWnd = WindowFromPoint(pt); 
-	if (pWnd!=&m_Tree) return;
-	m_Tree.ScreenToClient(&pt);
-	HTREEITEM hItem=m_Tree.HitTest(pt, &nFlags); //用于获取拖入处的Item
-	if (hItem == NULL)  return;
-
-	//列出选择的项和ID
-	int Cnt=m_List.GetSelectedCount();
-	if (Cnt==0) return;
-	int *Ids=new int[Cnt];
-	POSITION pos=m_List.GetFirstSelectedItemPosition();
-	for (int i=0; pos!=NULL && i<Cnt; i++)
+	if (pWnd==&m_List)
 	{
-		int n=m_List.GetNextSelectedItem(pos);
-		Ids[i]=m_List.GetItemData(n);
+		//拖动到的位置m, 拖动项n
+		m_List.ScreenToClient(&pt);
+		int m=m_List.HitTest(pt,&nFlags);
+		if (m==-1) m=m_List.GetItemCount()-1;
+		if (m_List.GetSelectedCount()!=1)
+		{
+			MessageBox("当前只支持单项拖动排序。","错误",MB_ICONERROR);
+			return;
+		}
+		int n=m_List.GetSelectionMark();
+		if (n==m) return;
+		TRACE("从%d拖动到%d\r\n",n,m);
+		//先读取出选中的主机
+		int nId=m_List.GetItemData(n);
+		CArray<HOST_STRUCT,HOST_STRUCT&>HostArray;
+		char sqlstr[128];
+		int rc=sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where id=%d;",nId);
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
+		if (HostArray.GetSize()!=1) return;
+		//读取最大的ID，临时ID使用MaxID+1
+		int MaxId=0;
+		strcpy_s(sqlstr,sizeof(sqlstr),"select max(id) from HostTab;");
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, ReadIntCallback, &MaxId, NULL);
+		//更新数据库
+		//先将拖动到的项设置为一个临时ID
+		rc = sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set id=%d where id=%d",MaxId+1,nId);
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		//循环更改
+		for (int k=n; k!=m;)
+		{
+			k+=n>=m ? -1:1;		//下一个的方向
+			int tmpId=m_List.GetItemData(k);
+			m_List.SetItemData(k,nId);
+			rc = sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set id=%d where id=%d",nId,tmpId);
+			TRACE("%s\r\n",sqlstr);
+			rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+			nId=tmpId;
+		}
+		//还原拖动项的ID
+		rc = sprintf_s(sqlstr,sizeof(sqlstr),"update HostTab set id=%d where id=%d",nId,MaxId+1);
+		TRACE("%s\r\n",sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		//列表框删除后重新添加
+		m_List.DeleteItem(n);
+		ListAddHost(&HostArray[0],nId,m);
 	}
-	//更新数据库
-	int ParentId = m_Tree.GetItemData(hItem);
-	int sqlstrlen=44+17*Cnt;
-	char *sqlstr=new char[44+17*Cnt];
-	int len=sprintf_s(sqlstr,sqlstrlen,"update HostTab set ParentId=%d where ",ParentId);
-	for (int i=0; i<Cnt; i++)
-		len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d" : " or id=%d",Ids[i]);
-	sqlstr[len++]=';';
-	sqlstr[len]=0;
-	TRACE("%s\r\n",sqlstr);
-	int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
-	//
-	delete Ids;
-	delete sqlstr;
-	//重新选择树hItem
-	m_Tree.SelectItem(hItem);
+	else if (pWnd==&m_Tree) 
+	{
+		m_Tree.ScreenToClient(&pt);
+		HTREEITEM hItem=m_Tree.HitTest(pt, &nFlags); //用于获取拖入处的Item
+		if (hItem == NULL)  return;
+
+		int Cnt=m_List.GetSelectedCount();
+		if (Cnt==0) return;
+		//更新数据库
+		int ParentId = m_Tree.GetItemData(hItem);
+		int sqlstrlen=44+17*Cnt;
+		char *sqlstr=new char[sqlstrlen];
+		int len=sprintf_s(sqlstr,sqlstrlen,"update HostTab set ParentId=%d where ",ParentId);
+		POSITION pos=m_List.GetFirstSelectedItemPosition();
+		for (int i=0; pos!=NULL && i<Cnt; i++)
+		{
+			int n=m_List.GetNextSelectedItem(pos);
+			len+=sprintf_s(sqlstr+len,sqlstrlen-len, i==0 ? "id=%d" : " or id=%d",m_List.GetItemData(n));
+		}
+		sqlstr[len++]=';';
+		sqlstr[len]=0;
+		TRACE("%s\r\n",sqlstr);
+		int rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+		//
+		delete sqlstr;
+		//重新选择树hItem
+		m_Tree.SelectItem(hItem);
+	}
 }
 
 void CRemoteManDlg::OnMenuClickedExportGroup(void)
@@ -1961,20 +2008,18 @@ void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
 	}
 	if (cx<Mincx) cx=Mincx;
 	if (cy<Mincy) cy=Mincy;
-	if (m_hWnd==NULL) return;
 	//移动右侧控件位置
-	//得到第一个控件的左侧位置，其它控件对应这个位置做偏差
 	CRect rt;
-	int left=0;
-	int const offset=96;	//第一个控件的位置相对右边为96
+	int offset=INT_MAX;
 	for (int i=0; i<sizeof(RIGHT_CTRL_IDS)/sizeof(RIGHT_CTRL_IDS[0]); i++)
 	{
-		GetDlgItem(RIGHT_CTRL_IDS[i])->GetWindowRect(rt);
+		CWnd *p=GetDlgItem(RIGHT_CTRL_IDS[i]);
+		p->GetWindowRect(rt);
 		ScreenToClient(rt);
-		if (left==0) left=rt.left;
-		TRACE("Top=%d,Bottom=%d,Left=%d,Right=%d\r\n",rt.top,rt.bottom,rt.left,rt.right);
-		rt.OffsetRect(cx-offset-left,0);
-		GetDlgItem(RIGHT_CTRL_IDS[i])->MoveWindow(rt);
+		if (offset==INT_MAX) offset=cx-96-rt.left;	//第一个控件的位置相对右边为96
+	//	TRACE("Top=%d,Bottom=%d,Left=%d,Right=%d\r\n",rt.top,rt.bottom,rt.left,rt.right);
+		rt.OffsetRect(offset,0);
+		p->MoveWindow(rt);
 	}
 	//移动树控件和列表框,两个宽度的原始比例为：184/597
 	//左边界开始为4，中间空5，右边界CX-139,底部空3
@@ -2019,4 +2064,14 @@ void CRemoteManDlg::OnSize(UINT nType, int cx, int cy)
 	rt.top+=23;
 	rt.bottom-=12;
 	GetDlgItem(IDC_EDIT_README)->MoveWindow(rt);
+	//
+	Invalidate();		//有残影要重绘
+}
+
+
+void CRemoteManDlg::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
+{
+//	CDialogEx::OnSettingChange(uFlags, lpszSection); //避免系统设置改变时工具栏的大小被改变
+
+	// TODO: 在此处添加消息处理程序代码
 }

@@ -123,7 +123,7 @@ public:
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	void OnMenuClickedRenameGroup(void);
 	afx_msg void OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult);
-	void ListAddHost(HOST_STRUCT const * pHost, int Id);
+	void ListAddHost(HOST_STRUCT const * pHost, int Id, int nItem=-1);
 	void OnMenuClickedExportGroup(void);
 	void OnMenuClickedImportGroup(void);
 	void ImportGroup(HTREEITEM hItem, int ExportId);
@@ -133,4 +133,5 @@ public:
 	void OnMenuClickedVncListen(void);
 	CDimEdit m_SearchEdit;
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
 };
