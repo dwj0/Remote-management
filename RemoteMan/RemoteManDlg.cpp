@@ -380,6 +380,7 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 
 CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(CRemoteManDlg::IDD, pParent)
+	, bScanExit(false)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 	char Path[MAX_PATH];
@@ -1371,7 +1372,8 @@ void CRemoteManDlg::OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult)
 	char sqlstr[128];
 	int Cnt=0;
 	int Id=m_Tree.GetItemData(pTVDispInfo->item.hItem);
-	int ParentId=m_Tree.GetItemData(m_Tree.GetParentItem(pTVDispInfo->item.hItem));
+	HTREEITEM hParentItem=m_Tree.GetParentItem(pTVDispInfo->item.hItem);
+	int ParentId=hParentItem==0 ? 0:m_Tree.GetItemData(hParentItem);
 	//先检查此名称是否存在
 	int rc=sprintf_s(sqlstr,sizeof(sqlstr),"select count() from GroupTab where ParentId=%d and Name='%s' and Id!=%d;",ParentId,Name,Id);
 	TRACE("%s\r\n",sqlstr);
@@ -1934,7 +1936,7 @@ static DWORD CALLBACK ScanOnlineThread(LPVOID lp)
 	for (int i=0; i<pDlg->m_List.GetItemCount(); i++)
 		pDlg->m_List.SetItemText(i,5,"---");
 
-	for (int i=0; i<pDlg->m_List.GetItemCount(); i++)
+	for (int i=0; i<pDlg->m_List.GetItemCount() && !pDlg->bScanExit; i++)
 	{
 		char Address[64];
 		int Port;
@@ -1948,17 +1950,28 @@ static DWORD CALLBACK ScanOnlineThread(LPVOID lp)
 	}
 
 	pDlg->m_Tree.EnableWindow(TRUE);
+	pDlg->SetDlgItemText(IDC_BTN_CHECK_ONLINE,"在线检测");
 	return 0;
 }
 
 void CRemoteManDlg::OnBnClickedBtnCheckOnline()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	int Cnt=m_List.GetItemCount();
-	if (Cnt==0) return;
-
-	m_Tree.EnableWindow(FALSE);
-	CreateThread(NULL,0,ScanOnlineThread,this,0,NULL);
+	char str[10];
+	GetDlgItemText(IDC_BTN_CHECK_ONLINE,str,10);
+	if (strcmp(str,"停止检测")==0)
+	{
+		bScanExit=true;
+	}
+	else
+	{
+		int Cnt=m_List.GetItemCount();
+		if (Cnt==0) return;
+		bScanExit=false;
+		m_Tree.EnableWindow(FALSE);
+		SetDlgItemText(IDC_BTN_CHECK_ONLINE,"停止检测");
+		CreateThread(NULL,0,ScanOnlineThread,this,0,NULL);
+	}
 }
 
 
