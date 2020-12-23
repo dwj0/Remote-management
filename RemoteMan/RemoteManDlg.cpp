@@ -26,6 +26,7 @@ ParentShowHost boolean,\r\n\
 Password char(66),\r\n\
 RadminPath char(256),\r\n\
 SSHPath char(256),\r\n\
+WinScpPath char(256),\r\n\
 VNCPath char(256),\r\n\
 SSHParamFormat char(64),\r\n\
 CheckOnlineTimeOut int,\r\n\
@@ -60,7 +61,7 @@ Account char(32) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into %sConfigTab values(0, 1, 0, true, '', '', '', '', '', 500, false, true,'',false,0,0,true, true, true, 0, true, 1);\r\n\
+insert into %sConfigTab values(0, 2, 0, true, '', '', '', '', '','', 500, false, true,'',false,0,0,true, true, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
@@ -250,6 +251,8 @@ static int ReadConfigCallback(void* para, int n_column, char** column_value, cha
 			strcpy_s(pConfig->RadminPath,sizeof(pConfig->RadminPath),column_value[i]);
 		else if (strcmp(column_name[i],"SSHPath")==0)
 			strcpy_s(pConfig->SSHPath,sizeof(pConfig->SSHPath),column_value[i]);
+		else if (strcmp(column_name[i],"WinScpPath")==0)
+			strcpy_s(pConfig->WinScpPath,sizeof(pConfig->WinScpPath),column_value[i]);
 		else if (strcmp(column_name[i],"VNCPath")==0)
 			strcpy_s(pConfig->VNCPath,sizeof(pConfig->VNCPath),column_value[i]);
 		else if (strcmp(column_name[i],"SSHParamFormat")==0)
@@ -376,6 +379,16 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 		TRACE("%s\r\n",sqlstr);
 		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
 	}
+	//当DatabaseVer=1时，缺少WinScpPath列
+	if (SysConfig.DatabaseVer==1)
+	{
+		SysConfig.DatabaseVer=2;
+		//添加列
+		char sqlstr[1024]="alter table ConfigTab add column WinScpPath char(256);"
+			"update ConfigTab set DatabaseVer=2 where id=0;";
+		TRACE("%s\r\n",sqlstr);
+		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
+	}
 }
 
 CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
@@ -446,6 +459,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_EDITHOST, &CRemoteManDlg::OnMenuClickedEditHost)
 	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedDelHost)
 	ON_BN_CLICKED(ID_MENU_CONNENT, &CRemoteManDlg::OnMenuClickedConnentHost)
+	ON_BN_CLICKED(ID_MENU_WINSCP_CONNENT, &CRemoteManDlg::OnMenuClickedWinScpConnent)
 	ON_BN_CLICKED(ID_MENU_VNC_LISTEN,&CRemoteManDlg::OnMenuClickedVncListen)
 	ON_BN_CLICKED(ID_MENU_RENAMEGROUP, &CRemoteManDlg::OnMenuClickedRenameGroup)
 	ON_BN_CLICKED(ID_MENU_EXPORTGROUP,&CRemoteManDlg::OnMenuClickedExportGroup)
@@ -663,23 +677,13 @@ HBRUSH CRemoteManDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 
 void CRemoteManDlg::OnToolbarClickedSysSet(void)
 {
-	CSysSetDlg Dlg(SysConfig.ParentShowHost, 
-		SysConfig.MstscLocalDrive, 
-		SysConfig.MstscColor, 
-		SysConfig.MstscConsole,
-		SysConfig.MstscFontSmooth,
-		SysConfig.MstscThemes, 
-		SysConfig.RadminColor, 
-		SysConfig.RadminPath, 
-		SysConfig.SSHPath, 
-		SysConfig.VNCPath, 
-		SysConfig.SSHParamFormat,
-		SysConfig.CheckOnlineTimeOut);
+	CSysSetDlg Dlg(&SysConfig);
 	if (Dlg.DoModal()==IDOK)
 	{
 		SysConfig.ParentShowHost=Dlg.m_ParentShowHost!=0;
 		strcpy_s(SysConfig.RadminPath,sizeof(SysConfig.RadminPath),Dlg.m_RadminPath);
 		strcpy_s(SysConfig.SSHPath,sizeof(SysConfig.SSHPath),Dlg.m_SshPath);
+		strcpy_s(SysConfig.WinScpPath,sizeof(SysConfig.WinScpPath),Dlg.m_WinScpPath);
 		strcpy_s(SysConfig.VNCPath,sizeof(SysConfig.VNCPath),Dlg.m_VNCPath);
 		strcpy_s(SysConfig.MstscLocalDrive,sizeof(SysConfig.MstscLocalDrive),Dlg.m_MstDriveStr);
 		strcpy_s(SysConfig.SSHParamFormat,sizeof(SysConfig.SSHParamFormat),Dlg.m_SSHFormat);
@@ -691,12 +695,13 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 		SysConfig.CheckOnlineTimeOut=Dlg.m_TimeOut;
 		
 		char sqlstr[1024];
-		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',VNCPath='%s',"
+		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',WinScpPath='%s',VNCPath='%s',"
 											  "SSHParamFormat='%s',CheckOnlineTimeOut=%d,MstscLocalDrive='%s',MstscColor=%d,"
 											  "MstscConsole=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
 			SysConfig.ParentShowHost ? "true":"false",
 			SysConfig.RadminPath,
 			SysConfig.SSHPath,
+			SysConfig.WinScpPath,
 			SysConfig.VNCPath,
 			SysConfig.SSHParamFormat,
 			SysConfig.CheckOnlineTimeOut,
@@ -1266,8 +1271,8 @@ void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 			Format="/ssh2 %3@%1 /P %2 /PASSWORD %4";
 		else if (Path.Find("putty.exe")!=-1)
 			Format="-ssh -l %3 -pw %4 -P %2 %1";
-		else if (Path.Find("winscp.exe")!=-1)
-			Format="%3:%4@%1:%2";
+/*		else if (Path.Find("winscp.exe")!=-1)
+			Format="%3:%4@%1:%2";*/
 		else
 		{
 			AfxMessageBox("SSH命令行参数格式设置错误.");
@@ -1308,9 +1313,9 @@ void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 	WinExec(str,SW_SHOW);
 }
 
-void CRemoteManDlg::ConnentHost(int RadminCtrlMode)
+bool CRemoteManDlg::GetSelectHost(HOST_STRUCT *pHost)
 {
-	if (m_List.GetSelectedCount()!=1) return;
+	if (m_List.GetSelectedCount()!=1) return false;
 	int n=m_List.GetSelectionMark();
 	//获取主机信息
 	char sqlstr[128];
@@ -1318,23 +1323,30 @@ void CRemoteManDlg::ConnentHost(int RadminCtrlMode)
 	sprintf_s(sqlstr,sizeof(sqlstr),"select * from HostTab where Id=%d;",m_List.GetItemData(n));
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
-	if (HostArray.GetSize()!=1) return;
-	HOST_STRUCT Host=HostArray[0];
-	if (Host.Password[0]!=0)
+	if (HostArray.GetSize()!=1) return false;
+	*pHost=HostArray[0];
+	if (pHost->Password[0]!=0)
 	{
 		byte data[36];
-		int len=StringToBytes(Host.Password,data);
+		int len=StringToBytes(pHost->Password,data);
 		if (len>0)
 		{
 			len=AesDeCode(data,len,AES_KEY);
-			if (len>0) strcpy_s(Host.Password,sizeof(Host.Password),(char*)data);
+			if (len>0) strcpy_s(pHost->Password,sizeof(pHost->Password),(char*)data);
 		}
 	}
+	return true;
+}
+
+void CRemoteManDlg::ConnentHost(int CtrlMode)
+{
+	HOST_STRUCT Host;
+	if (!GetSelectHost(&Host)) return;
 	//
 	if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_RDP_NAME)==0)
 		MstscConnent(&Host,&SysConfig);
 	else if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_RADMIN_NAME)==0)
-		RadminConnent(&Host,&SysConfig,RadminCtrlMode);
+		RadminConnent(&Host,&SysConfig,CtrlMode);
 	else if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_SSH_NAME)==0)
 		SSHConnent(&Host,&SysConfig);
 	else if (strcmp(CTRL_MODE[Host.CtrlMode],CTRL_MODE_VNC_NAME)==0)
@@ -1349,6 +1361,25 @@ void CRemoteManDlg::OnMenuClickedConnentHost(void)
 void CRemoteManDlg::OnMenuClickedRadminCtrl(UINT Id)
 {
 	ConnentHost(Id-ID_MENU_FULLCTRL);
+}
+
+void CRemoteManDlg::OnMenuClickedWinScpConnent(void)
+{
+	HOST_STRUCT Host;
+	if (!GetSelectHost(&Host)) return;
+	
+	//查看文件是否存在
+	char str[MAX_PATH*2];
+	CFileStatus fstatus;
+	if (strstr(SysConfig.WinScpPath,".exe")==NULL || !CFile::GetStatus(SysConfig.WinScpPath,fstatus))
+	{
+		AfxMessageBox("SSH路径设置错误");
+		return;
+	}
+	//命令行
+	sprintf_s(str,sizeof(str),"%s %s:%s@%s:%d",SysConfig.WinScpPath, Host.Account, Host.Password, Host.HostAddress, Host.HostPort);
+	TRACE("%s\r\n",str);
+	WinExec(str,SW_SHOW);
 }
 
 void CRemoteManDlg::OnMenuClickedRenameGroup(void)
@@ -1576,10 +1607,19 @@ void CRemoteManDlg::OnNMRClickList1(NMHDR *pNMHDR, LRESULT *pResult)
 	{
 		char str[12];
 		m_List.GetItemText(pNMItemActivate->iItem,0,str,10);
-		Index=strcmp(str,CTRL_MODE_RADMIN_NAME)==0 ? 4:strcmp(str,CTRL_MODE_VNC_NAME)==0 ? 6:3;
+		if (strcmp(str,CTRL_MODE_RADMIN_NAME)==0)
+			Index=5;
+		else if (strcmp(str,CTRL_MODE_RDP_NAME)==0)
+			Index=4;
+		else if (strcmp(str,CTRL_MODE_SSH_NAME)==0)
+			Index=6;
+		else if (strcmp(str,CTRL_MODE_VNC_NAME)==0)
+			Index=7;
+		else
+			return;
 	}
 	else
-		Index=5;
+		Index=3;
 
 	CMenu Menu;
 	Menu.LoadMenu(IDR_MENU_RCLICK);
