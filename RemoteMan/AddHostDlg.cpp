@@ -65,7 +65,7 @@ BOOL CAddHostDlg::OnInitDialog()
 	{
 		pBox->SetCurSel(0);
 		SetCtrlModeDefPort(0);
-		SetDlgItemText(IDC_EDIT_USER,"Administrator");
+		((CComboBox*)GetDlgItem(IDC_COMBO_USER))->SetCurSel(2);
 	}
 	else
 	{
@@ -73,7 +73,7 @@ BOOL CAddHostDlg::OnInitDialog()
 		SetDlgItemInt(IDC_EDIT_HOSTPORT,m_Host.HostPort);
 		SetDlgItemText(IDC_EDIT_HOSTADDR,m_Host.HostAddress);
 		SetDlgItemText(IDC_EDIT_HOSTNAME,m_Host.Name);
-		SetDlgItemText(IDC_EDIT_USER,m_Host.Account);
+		SetDlgItemText(IDC_COMBO_USER,m_Host.Account);
 		SetDlgItemText(IDC_EDIT_README,m_Host.ReadMe);
 		SetWindowText("编辑主机");
 		SetDlgItemText(IDOK,"确定");
@@ -120,7 +120,7 @@ void CAddHostDlg::OnBnClickedOk()
 	//控制模式
 	m_Host.CtrlMode=((CComboBox*)GetDlgItem(IDC_COMBO_CTRLMODE))->GetCurSel();
 	//用户名
-	GetDlgItemText(IDC_EDIT_USER,str);
+	GetDlgItemText(IDC_COMBO_USER,str);
 	str.Trim();
 	if (str.GetLength()>=sizeof(m_Host.Account))
 	{

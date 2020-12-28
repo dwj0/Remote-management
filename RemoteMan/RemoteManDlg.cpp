@@ -9,6 +9,7 @@
 #include "Aes.h"
 #include "CodeConverter.h"
 #include "FileDialogEx.h"
+#include <Wincrypt.h>
 
 #pragma comment(lib, "Crypt32.lib")
 
