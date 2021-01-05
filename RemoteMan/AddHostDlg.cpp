@@ -20,7 +20,7 @@ CAddHostDlg::CAddHostDlg(HOST_STRUCT const *pHost,  HTREEITEM hItem, CWnd* pPare
 	if (pHost)
 	{
 		bAddHost=false;
-		m_Password="********";
+		m_Password=pHost->Password;
 		memcpy(&m_Host, pHost, sizeof(m_Host));
 	}
 	else
@@ -79,6 +79,11 @@ BOOL CAddHostDlg::OnInitDialog()
 		SetDlgItemText(IDOK,"确定");
 		SetDlgItemText(IDCANCEL,"取消");
 	}
+
+#ifdef SHOW_HOST_PASSWORD
+	CEdit *pEdit = (CEdit*)GetDlgItem(IDC_EDIT_PASSWORD);
+	pEdit->SetPasswordChar(0);
+#endif
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 异常: OCX 属性页应返回 FALSE

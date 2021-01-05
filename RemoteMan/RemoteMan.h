@@ -10,6 +10,9 @@
 
 #include "resource.h"		// Ö÷·ûºÅ
 
+//#define SHOW_HOST_PASSWORD		
+
+
 #define PASSWORD_MAXLEN			31
 
 #define CTRL_MODE_RDP_NAME		"RDP"

@@ -890,6 +890,21 @@ void CRemoteManDlg::OnMenuClickedEditHost(void)
 	int rc = sqlite3_exec(m_pDB, sqlstr, ReadHostCallBack, &HostArray, NULL);
 	if (HostArray.GetSize()!=1) return;
 	HOST_STRUCT Host=HostArray[0];
+	//设置中是否要显示密码
+#ifdef SHOW_HOST_PASSWORD
+	if (Host.Password[0]!=0)
+	{
+		byte data[36];
+		int len=StringToBytes(Host.Password,data);
+		if (len>0)
+		{
+			len=AesDeCode(data,len,AES_KEY);
+			if (len>0) strcpy_s(Host.Password,sizeof(Host.Password),(char*)data);
+		}
+	}
+#else
+	strcpy_s(Host.Password,sizeof(Host.Password),"********");
+#endif
 
 	CAddHostDlg Dlg(&Host, 0);
 	if (Dlg.DoModal()!=IDOK) return;
