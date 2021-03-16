@@ -38,6 +38,7 @@ CRemoteManApp::CRemoteManApp()
 char const CTRL_MODE[4][7]={CTRL_MODE_RDP_NAME,CTRL_MODE_RADMIN_NAME,CTRL_MODE_SSH_NAME,CTRL_MODE_VNC_NAME};
 CRemoteManApp theApp;
 
+static HANDLE hSem;
 
 // CRemoteManApp 初始化
 
@@ -75,6 +76,44 @@ BOOL CRemoteManApp::InitInstance()
 	// TODO: 应适当修改该字符串，
 	// 例如修改为公司或组织名
 	SetRegistryKey(_T("应用程序向导生成的本地应用程序"));
+
+	//只运行一个实例
+	hSem = CreateSemaphore(NULL, 1, 1, m_pszExeName);
+	if (GetLastError() == ERROR_ALREADY_EXISTS)
+	{
+		// 关闭信号量句柄
+//		CloseHandle(hSem);
+		// 寻找先前实例的主窗口
+		HWND hWndPrevious = ::GetWindow(::GetDesktopWindow(),GW_CHILD);
+		while (::IsWindow(hWndPrevious))
+		{
+			// 检查窗口是否有预设的标记?
+			// 有，则是我们寻找的主窗
+			if (::GetProp(hWndPrevious, m_pszExeName))
+			{
+				// 如果窗口已经缩小在任务栏中，那么首先先打开
+				if(!::IsWindowVisible(hWndPrevious))
+					::PostMessage(hWndPrevious, WM_SYSCOMMAND, SC_MINIMIZE, 0);
+				// 主窗口已最小化，则恢复其大小
+				if (::IsIconic(hWndPrevious))
+					::ShowWindow(hWndPrevious,SW_RESTORE);
+				// 将主窗激活
+				::SetForegroundWindow(hWndPrevious);
+				// 将主窗的对话框激活
+				::SetForegroundWindow(
+					::GetLastActivePopup(hWndPrevious));
+				// 退出本实例
+				return FALSE;
+			}
+			// 继续寻找下一个窗口
+			hWndPrevious = ::GetWindow(hWndPrevious,GW_HWNDNEXT);
+		}
+		// 前一实例已存在，但找不到其主窗
+		AfxMessageBox("已有一个实例在运行，但找不到它的主窗口！");
+		// 可能出错了
+		// 退出本实例
+		return FALSE;
+	}
 
 	CRemoteManDlg dlg;			//在这里打开了数据库并读取了参数
 	//输入开机密码
@@ -115,3 +154,11 @@ BOOL CRemoteManApp::InitInstance()
 	return FALSE;
 }
 
+
+
+int CRemoteManApp::ExitInstance()
+{
+	// TODO: 在此添加专用代码和/或调用基类
+	CloseHandle(hSem);
+	return CWinApp::ExitInstance();
+}
