@@ -1173,7 +1173,7 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 		return;
 	}
 
-	char str1[100],str2[30];
+	char str1[100],str2[64];
 	//启动Radmin连接服务器
 	if (pHost->HostPort==4899)
 		sprintf_s(str1,sizeof(str1),"/connect:%s %s %s",pHost->HostAddress,MODE[CtrlMode],COLOUR[pConfig->RadminColor]);
@@ -1393,7 +1393,7 @@ void CRemoteManDlg::OnMenuClickedWinScpConnent(void)
 		return;
 	}
 	//命令行
-	sprintf_s(str,sizeof(str),"%s %s:%s@%s:%d",SysConfig.WinScpPath, Host.Account, Host.Password, Host.HostAddress, Host.HostPort);
+	sprintf_s(str,sizeof(str),"%s scp://%s:%s@%s:%d",SysConfig.WinScpPath, Host.Account, Host.Password, Host.HostAddress, Host.HostPort);
 	TRACE("%s\r\n",str);
 	WinExec(str,SW_SHOW);
 }

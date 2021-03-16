@@ -10,7 +10,7 @@
 
 #include "resource.h"		// Ö÷·ûºÅ
 
-//#define SHOW_HOST_PASSWORD		
+#define SHOW_HOST_PASSWORD		
 
 
 #define PASSWORD_MAXLEN			31
