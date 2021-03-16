@@ -407,6 +407,12 @@ CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
 	}
 	else
 		strcpy_s(Path,sizeof(Path),"User.db");
+	//先备份一下数据库,做一颗后悔药
+	char BakPath[MAX_PATH];
+	sprintf_s(BakPath,MAX_PATH,"%s.bak",Path);
+	CFileStatus fstatus;
+	if (CFile::GetStatus(Path,fstatus))
+		CopyFile(Path,BakPath,FALSE);
 
 	if (!OpenUserDb(CodeConverter::AsciiToUtf8(Path).c_str()))
 	{
@@ -461,13 +467,14 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_DELHOST, &CRemoteManDlg::OnMenuClickedDelHost)
 	ON_BN_CLICKED(ID_MENU_CONNENT, &CRemoteManDlg::OnMenuClickedConnentHost)
 	ON_BN_CLICKED(ID_MENU_WINSCP_CONNENT, &CRemoteManDlg::OnMenuClickedWinScpConnent)
-	ON_BN_CLICKED(ID_MENU_VNC_LISTEN,&CRemoteManDlg::OnMenuClickedVncListen)
 	ON_BN_CLICKED(ID_MENU_RENAMEGROUP, &CRemoteManDlg::OnMenuClickedRenameGroup)
 	ON_BN_CLICKED(ID_MENU_EXPORTGROUP,&CRemoteManDlg::OnMenuClickedExportGroup)
 	ON_BN_CLICKED(ID_MENU_IMPORTGROUP,&CRemoteManDlg::OnMenuClickedImportGroup)
+	ON_COMMAND_RANGE(ID_MENU_OPENSSH,ID_MENU_OPEN_WINSCP,&CRemoteManDlg::OnMenuClickedOpenSSH)
 	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
 	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
 	ON_BN_CLICKED(IDC_TOOLER_OPENSSH, &CRemoteManDlg::OnToolbarClickedOpenSSH)
+	ON_BN_CLICKED(IDC_TOOLER_OPENVNC, &CRemoteManDlg::OnToolbarClickedOpenVNC)
 	ON_BN_CLICKED(IDC_CHECK_MST_SHOW_WALLPAPER, &CRemoteManDlg::OnBnClickedCheckMstShowWallpaper)
 	ON_BN_CLICKED(IDC_CHECK_MST_DRIVE, &CRemoteManDlg::OnBnClickedCheckMstDrive)
 	ON_BN_CLICKED(IDC_CHECK_MST_AUDIO, &CRemoteManDlg::OnBnClickedCheckMstAudio)
@@ -490,6 +497,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_SEARCH, &CRemoteManDlg::OnBnClickedBtnSearch)
 	ON_WM_SIZE()
 	ON_WM_SETTINGCHANGE()
+	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 //TVN_ENDLABELEDIT 删除这行会不能设置断点，不信你试试
@@ -509,14 +517,15 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDR_MAINFRAME));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_RADMIN));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_SSH));
+	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_ICON_VNC));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_SET));
 
-	UINT array[13]={ID_MENU_ADDGROUP,ID_MENU_DELGROUP,ID_SEPARATOR,
+	UINT array[14]={ID_MENU_ADDGROUP,ID_MENU_DELGROUP,ID_SEPARATOR,
 					ID_MENU_ADDHOST,ID_MENU_EDITHOST,ID_MENU_DELHOST,ID_SEPARATOR,
-					ID_MENU_CONNENT,IDC_TOOLER_OPENMSTSC,IDC_TOOLER_OPENRADMIN,IDC_TOOLER_OPENSSH,ID_SEPARATOR,
+					ID_MENU_CONNENT,IDC_TOOLER_OPENMSTSC,IDC_TOOLER_OPENRADMIN,IDC_TOOLER_OPENSSH,IDC_TOOLER_OPENVNC,ID_SEPARATOR,
 					IDC_TOOLER_SET};
 	m_ToolBar.Create(this);
-	m_ToolBar.SetButtons(array,13);
+	m_ToolBar.SetButtons(array,14);
 	m_ToolBar.SetButtonText(0,"添加分组");
 	m_ToolBar.SetButtonText(1,"删除分组");
 	m_ToolBar.SetButtonText(3,"添加主机");
@@ -526,12 +535,13 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolBar.SetButtonText(8,"远程桌面");
 	m_ToolBar.SetButtonText(9,"Radmin");
 	m_ToolBar.SetButtonText(10,"SSH软件");
-	m_ToolBar.SetButtonText(12,"设置");
+	m_ToolBar.SetButtonText(11,"VNC");
+	m_ToolBar.SetButtonText(13,"设置");
 
 	m_ToolBar.GetToolBarCtrl().SetImageList(&m_ToolbarImageList);
-	m_ToolBar.SetSizes(CSize(72,56),CSize(32,32));
+	m_ToolBar.SetSizes(CSize(70,56),CSize(32,32));
 
-	m_ToolBar.MoveWindow(CRect(0,-1,760,62));	//移动工具栏在父窗口的位置
+	m_ToolBar.MoveWindow(CRect(0,-1,820,62));	//移动工具栏在父窗口的位置
 	m_ToolBar.ShowWindow(SW_SHOW);				//显示工具栏
 //	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
 }
@@ -569,6 +579,9 @@ BOOL CRemoteManDlg::OnInitDialog()
 	HICON hico=(HICON)LoadImage(AfxGetApp()->m_hInstance,MAKEINTRESOURCE(IDI_MSTSC),IMAGE_ICON,64,64,LR_DEFAULTCOLOR);
 	((CStatic*)GetDlgItem(IDC_STATIC_PIC))->SetIcon(hico);
 
+	//设置程序标志，用于单实例运行时还原窗口
+	::SetProp(m_hWnd,AfxGetApp()->m_pszExeName,(HANDLE)1);
+
 	InitToolBar();
 
 	m_ImageList.Create(24,24,ILC_COLOR24|ILC_MASK,1,1);
@@ -585,7 +598,7 @@ BOOL CRemoteManDlg::OnInitDialog()
 	m_List.SetImageList(&m_ImageList,LVSIL_SMALL);
 	m_List.InsertColumn(0,"类型",LVCFMT_LEFT,ListDefColumnWidth[0]);
 	m_List.InsertColumn(1,"服务器名称",LVCFMT_LEFT,ListDefColumnWidth[1]);
-	m_List.InsertColumn(2,"域名",LVCFMT_LEFT,ListDefColumnWidth[2]);
+	m_List.InsertColumn(2,"主机",LVCFMT_LEFT,ListDefColumnWidth[2]);
 	m_List.InsertColumn(3,"端口",LVCFMT_LEFT,ListDefColumnWidth[3]);
 	m_List.InsertColumn(4,"账户",LVCFMT_LEFT,ListDefColumnWidth[4]);
 	m_List.InsertColumn(5,"状态",LVCFMT_LEFT,ListDefColumnWidth[5]);
@@ -1013,12 +1026,28 @@ void CRemoteManDlg::OnToolbarClickedOpenRadmin(void)
 }
 
 
-void CRemoteManDlg::OnToolbarClickedOpenSSH(void)
+void CRemoteManDlg::OnMenuClickedOpenSSH(UINT id)
 {
-	if (strstr(SysConfig.SSHPath,".exe"))
-		WinExec(SysConfig.SSHPath,SW_SHOW);
+	char const *path = id==ID_MENU_OPENSSH ? SysConfig.SSHPath:SysConfig.WinScpPath;
+	if (strstr(path,".exe"))
+		WinExec(path,SW_SHOW);
 }
 
+void CRemoteManDlg::OnToolbarClickedOpenSSH(void)
+{
+	CMenu Menu;
+	Menu.LoadMenu(IDR_MENU_RCLICK);
+	CMenu *pSubMenu=Menu.GetSubMenu(7);
+	CPoint point;
+	GetCursorPos(&point);
+	pSubMenu->TrackPopupMenu(TPM_LEFTALIGN|TPM_LEFTBUTTON|TPM_VERTICAL,point.x,point.y,this);
+}
+
+void CRemoteManDlg::OnToolbarClickedOpenVNC(void)
+{
+	if (strstr(SysConfig.VNCPath,".exe"))
+		WinExec(SysConfig.VNCPath,SW_SHOW);
+}
 
 void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
@@ -1142,7 +1171,7 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 
 	//存储到文件,借用str变量
 	GetTempPath(sizeof(str),str);
-	strcat_s(str,sizeof(str),"rdp_tmp");
+	strcat_s(str,sizeof(str),pHost->Name);
 //	sprintf_s(str,sizeof(str),"c:\\%s_RDP.rdp",pHost->HostAddress);
 	CFile file;
 	if (!file.Open(str,CFile::modeCreate|CFile::modeWrite|CFile::typeBinary)) return;
@@ -1212,7 +1241,7 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 
 void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
-	char const *VNCPath="vncviewer.exe";			//当路径为空时使用同目录下的radmin.exe
+	char const *VNCPath="tvnviewer.exe";			//当路径为空时使用同目录下的tvnviewer.exe
 	if (pConfig->VNCPath[0]!=0) VNCPath=pConfig->VNCPath;
 	//查看文件是否存在
 	CFileStatus fstatus;
@@ -1224,47 +1253,12 @@ void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 	char str1[100],str2[512];
 	//启动VNC连接服务器
 	sprintf_s(str1,sizeof(str1),"%s:%d",pHost->HostAddress,pHost->HostPort);
-	if (pConfig->RadminFullScreen)
+/*	if (pConfig->RadminFullScreen)
 		sprintf_s(str2,sizeof(str2),"%s -FullScreen %s",VNCPath,str1);
-	else
-		sprintf_s(str2,sizeof(str2),"%s %s",VNCPath,str1);
+	else*/
+	sprintf_s(str2,sizeof(str2),"%s %s -password=%s",VNCPath,str1,pHost->Password);
 	TRACE("%s\r\n",str2);
 	WinExec(str2,SW_SHOW);
-	//查找窗口标题框
-	sprintf_s(str2,sizeof(str2),"VNC 身份认证   %s",str1);
-	HWND hWnd;
-	clock_t t2,t1=clock();
-	for (t2=t1;t2-t1<8000;t2=clock())
-	{
-		Sleep(1);
-		hWnd=FindWindow(NULL,str2);
-		if (hWnd!=NULL)
-			break;
-	}
-	if (hWnd==NULL)	return;
-	//填写信息并发送
-	HWND PasswordWnd=::GetDlgItem(hWnd,0x3f1);
-	if (PasswordWnd!=NULL)
-		::SendMessage(PasswordWnd,WM_SETTEXT,0,(LPARAM)pHost->Password);
-	::PostMessage(hWnd,WM_COMMAND,1,0);
-}
-
-void CRemoteManDlg::OnMenuClickedVncListen(void)
-{
-	char const *VNCPath="vncviewer.exe";			//当路径为空时使用同目录下的radmin.exe
-	if (SysConfig.VNCPath[0]!=0) VNCPath=SysConfig.VNCPath;
-	//查看文件是否存在
-	CFileStatus fstatus;
-	if (strstr(VNCPath,".exe")==NULL || !CFile::GetStatus(VNCPath,fstatus))
-	{
-		AfxMessageBox("VNC路径设置错误");
-		return;
-	}
-	char str[512];
-	sprintf_s(str,sizeof(str),"%s -Listen",VNCPath);
-	TRACE("%s\r\n",str);
-	WinExec(str,SW_SHOW);
-	MessageBox("已开启端口：5500 的监听.");
 }
 
 void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
@@ -1625,12 +1619,12 @@ void CRemoteManDlg::OnNMRClickList1(NMHDR *pNMHDR, LRESULT *pResult)
 		m_List.GetItemText(pNMItemActivate->iItem,0,str,10);
 		if (strcmp(str,CTRL_MODE_RADMIN_NAME)==0)
 			Index=5;
-		else if (strcmp(str,CTRL_MODE_RDP_NAME)==0)
+		else if (strcmp(str,CTRL_MODE_RDP_NAME)==0 || strcmp(str,CTRL_MODE_VNC_NAME)==0)
 			Index=4;
 		else if (strcmp(str,CTRL_MODE_SSH_NAME)==0)
 			Index=6;
-		else if (strcmp(str,CTRL_MODE_VNC_NAME)==0)
-			Index=7;
+//		else if (strcmp(str,CTRL_MODE_VNC_NAME)==0)
+//			Index=7;
 		else
 			return;
 	}
@@ -2142,5 +2136,15 @@ void CRemoteManDlg::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
 {
 //	CDialogEx::OnSettingChange(uFlags, lpszSection); //避免系统设置改变时工具栏的大小被改变
 
+	// TODO: 在此处添加消息处理程序代码
+}
+
+
+
+
+void CRemoteManDlg::OnDestroy()
+{
+	CDialogEx::OnDestroy();
+	::RemoveProp(m_hWnd,AfxGetApp()->m_pszExeName);
 	// TODO: 在此处添加消息处理程序代码
 }

@@ -22,7 +22,7 @@ struct GROUP_STRUCT
 class CRemoteManDlg : public CDialogEx
 {
 //工具栏ID号
-enum {IDC_TOOLER_OPENRADMIN=10001,IDC_TOOLER_OPENMSTSC, IDC_TOOLER_OPENSSH, IDC_TOOLER_SET};
+enum {IDC_TOOLER_OPENRADMIN=10001,IDC_TOOLER_OPENMSTSC, IDC_TOOLER_OPENSSH, IDC_TOOLER_OPENVNC, IDC_TOOLER_SET};
 // 构造
 public:
 	CRemoteManDlg(CWnd* pParent = NULL);	// 标准构造函数
@@ -107,10 +107,12 @@ public:
 	afx_msg void OnBnClickedBtnCheckOnline();
 	afx_msg void OnBnClickedBtnSearch();
 	void DataBaseConversion(int Ver);
-	void OnMenuClickedVncListen(void);
 	CDimEdit m_SearchEdit;
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
 	bool GetSelectHost(HOST_STRUCT *pHost);
 	bool bScanExit;
+	void OnToolbarClickedOpenVNC(void);
+	void OnMenuClickedOpenSSH(UINT id);
+	afx_msg void OnDestroy();
 };

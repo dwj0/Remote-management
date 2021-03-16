@@ -10,7 +10,7 @@
 
 #include "resource.h"		// Ö÷·ûºÅ
 
-#define SHOW_HOST_PASSWORD		
+//#define SHOW_HOST_PASSWORD		
 
 
 #define PASSWORD_MAXLEN			31
@@ -37,6 +37,7 @@ public:
 // ÊµÏÖ
 
 	DECLARE_MESSAGE_MAP()
+	virtual int ExitInstance();
 };
 
 extern CRemoteManApp theApp;
