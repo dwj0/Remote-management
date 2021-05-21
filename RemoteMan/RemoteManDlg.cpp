@@ -470,6 +470,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_RENAMEGROUP, &CRemoteManDlg::OnMenuClickedRenameGroup)
 	ON_BN_CLICKED(ID_MENU_EXPORTGROUP,&CRemoteManDlg::OnMenuClickedExportGroup)
 	ON_BN_CLICKED(ID_MENU_IMPORTGROUP,&CRemoteManDlg::OnMenuClickedImportGroup)
+	ON_BN_CLICKED(ID_MENU_PING,&CRemoteManDlg::OnMenuClickedPing)
 	ON_COMMAND_RANGE(ID_MENU_OPENSSH,ID_MENU_OPEN_WINSCP,&CRemoteManDlg::OnMenuClickedOpenSSH)
 	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
 	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
@@ -1241,7 +1242,7 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 
 void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
-	char const *VNCPath="tvnviewer.exe";			//当路径为空时使用同目录下的tvnviewer.exe
+	char const *VNCPath="TightVnc\\tvnviewer.exe";			//当路径为空时使用同目录下的tvnviewer.exe
 	if (pConfig->VNCPath[0]!=0) VNCPath=pConfig->VNCPath;
 	//查看文件是否存在
 	CFileStatus fstatus;
@@ -1250,15 +1251,11 @@ void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 		AfxMessageBox("VNC路径设置错误");
 		return;
 	}
-	char str1[100],str2[512];
+	char str[512];
 	//启动VNC连接服务器
-	sprintf_s(str1,sizeof(str1),"%s:%d",pHost->HostAddress,pHost->HostPort);
-/*	if (pConfig->RadminFullScreen)
-		sprintf_s(str2,sizeof(str2),"%s -FullScreen %s",VNCPath,str1);
-	else*/
-	sprintf_s(str2,sizeof(str2),"%s %s -password=%s",VNCPath,str1,pHost->Password);
-	TRACE("%s\r\n",str2);
-	WinExec(str2,SW_SHOW);
+	sprintf_s(str,sizeof(str),"%s %s:%d -password=%s",VNCPath,pHost->HostAddress,pHost->HostPort,pHost->Password);
+	TRACE("%s\r\n",str);
+	WinExec(str,SW_SHOW);
 }
 
 void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
@@ -2140,11 +2137,20 @@ void CRemoteManDlg::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
 }
 
 
-
-
 void CRemoteManDlg::OnDestroy()
 {
 	CDialogEx::OnDestroy();
 	::RemoveProp(m_hWnd,AfxGetApp()->m_pszExeName);
 	// TODO: 在此处添加消息处理程序代码
+}
+
+
+void CRemoteManDlg::OnMenuClickedPing(void)
+{
+	HOST_STRUCT Host;
+	if (!GetSelectHost(&Host)) return;
+
+	char str[128];
+	sprintf_s(str,sizeof(str),"ping %s -t",Host.HostAddress);
+	WinExec(str,SW_SHOW);
 }
