@@ -19,7 +19,7 @@ RADMIN主机的右键菜单中加入完全控制、仅限查看、文件传送、远程关机多种功能。
 
 使用方法：  
 -
-在Release中下载RemoteMan.rar及default.rar，解压到同一目录下，运行 RemoteMan.exe  
+在Release中下载RemoteMan.rar后解压即可运行 RemoteMan.exe，其中可选择的default.rar里包含Radmin和VNC客户端，解压到RemoteMan.exe同一目录下即可
 
 编译器：  
 -
