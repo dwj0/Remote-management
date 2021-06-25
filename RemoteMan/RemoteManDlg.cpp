@@ -1054,7 +1054,7 @@ void CRemoteManDlg::OnMenuClickedOpenSSH(UINT id)
 		path = GetExePath(SysConfig.WinScpPath,SSH_DEF_PATH);
 		if (path==NULL)
 		{
-			MessageBox("SSH路径设置错误");
+			MessageBox("WinScp路径设置错误");
 			return;
 		}
 	}
@@ -1403,7 +1403,7 @@ void CRemoteManDlg::OnMenuClickedWinScpConnent(void)
 	char const *WinScpPath = GetExePath(SysConfig.WinScpPath,WINSCP_DEF_PATH);
 	if (WinScpPath==NULL)
 	{
-		MessageBox("SSH路径设置错误");
+		MessageBox("WinScp路径设置错误");
 		return;
 	}
 	char str[MAX_PATH*2];
