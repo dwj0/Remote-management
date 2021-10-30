@@ -143,6 +143,9 @@
     <ClCompile Include="InputPasswordDlg.cpp" />
     <ClCompile Include="RemoteMan.cpp" />
     <ClCompile Include="RemoteManDlg.cpp" />
+    <ClCompile Include="sqlite3.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -154,9 +157,6 @@
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="res\XPStyle.manifest" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="SQLITE3.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

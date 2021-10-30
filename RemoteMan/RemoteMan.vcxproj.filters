@@ -158,6 +158,9 @@
     <ClCompile Include="DimEdit.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="sqlite3.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RemoteMan.rc">
@@ -166,8 +169,5 @@
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="res\XPStyle.manifest" />
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="SQLITE3.lib" />
   </ItemGroup>
 </Project>

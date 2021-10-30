@@ -115,4 +115,5 @@ public:
 	void OnToolbarClickedOpenVNC(void);
 	void OnMenuClickedOpenSSH(UINT id);
 	afx_msg void OnDestroy();
+	void OnMenuClickedPing(void);
 };

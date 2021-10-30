@@ -470,6 +470,7 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_RENAMEGROUP, &CRemoteManDlg::OnMenuClickedRenameGroup)
 	ON_BN_CLICKED(ID_MENU_EXPORTGROUP,&CRemoteManDlg::OnMenuClickedExportGroup)
 	ON_BN_CLICKED(ID_MENU_IMPORTGROUP,&CRemoteManDlg::OnMenuClickedImportGroup)
+	ON_BN_CLICKED(ID_MENU_PING,&CRemoteManDlg::OnMenuClickedPing)
 	ON_COMMAND_RANGE(ID_MENU_OPENSSH,ID_MENU_OPEN_WINSCP,&CRemoteManDlg::OnMenuClickedOpenSSH)
 	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
 	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
@@ -1010,27 +1011,54 @@ void CRemoteManDlg::OnToolbarClickedOpenMstsc(void)
 	WinExec(szBuffer,SW_SHOW);
 }
 
-
-void CRemoteManDlg::OnToolbarClickedOpenRadmin(void)
+#define VNC_DEF_PATH	"TightVnc\\tvnviewer.exe"
+#define RADMIN_DEF_PATH	"radmin.exe"
+#define SSH_DEF_PATH	NULL
+#define WINSCP_DEF_PATH	NULL
+char const *GetExePath(char const *ConfigPath, char const *DefPath)
 {
-	char const *RadminPath="radmin.exe";			//当路径为空时使用同目录下的radmin.exe
-	if (SysConfig.RadminPath[0]!=0) RadminPath=SysConfig.RadminPath;
+	char const *Path=ConfigPath[0]==0 ? DefPath:ConfigPath;			//当路径为空时使用同目录下的tvnviewer.exe
 	//查看文件是否存在
 	CFileStatus fstatus;
-	if (strstr(RadminPath,".exe")==NULL || !CFile::GetStatus(RadminPath,fstatus))
-	{
-//		AfxMessageBox("Radmin路径设置错误");
-		return;
-	}
-	WinExec(RadminPath,SW_SHOW);
+	if (strstr(Path,".exe")==NULL || !CFile::GetStatus(Path,fstatus))
+		return NULL;
+	return Path;
 }
 
 
+void CRemoteManDlg::OnToolbarClickedOpenRadmin(void)
+{
+	char const *Path=GetExePath(SysConfig.RadminPath,RADMIN_DEF_PATH);
+	if (Path==NULL)
+	{
+		AfxMessageBox("Radmin路径设置错误");
+		return;
+	}
+	WinExec(Path,SW_SHOW);
+}
+
 void CRemoteManDlg::OnMenuClickedOpenSSH(UINT id)
 {
-	char const *path = id==ID_MENU_OPENSSH ? SysConfig.SSHPath:SysConfig.WinScpPath;
-	if (strstr(path,".exe"))
-		WinExec(path,SW_SHOW);
+	char const *path;
+	if (id==ID_MENU_OPENSSH)
+	{
+		path = GetExePath(SysConfig.SSHPath,SSH_DEF_PATH);
+		if (path==NULL)
+		{
+			MessageBox("SSH路径设置错误");
+			return;
+		}
+	}
+	else
+	{
+		path = GetExePath(SysConfig.WinScpPath,SSH_DEF_PATH);
+		if (path==NULL)
+		{
+			MessageBox("WinScp路径设置错误");
+			return;
+		}
+	}
+	WinExec(path,SW_SHOW);
 }
 
 void CRemoteManDlg::OnToolbarClickedOpenSSH(void)
@@ -1045,8 +1073,13 @@ void CRemoteManDlg::OnToolbarClickedOpenSSH(void)
 
 void CRemoteManDlg::OnToolbarClickedOpenVNC(void)
 {
-	if (strstr(SysConfig.VNCPath,".exe"))
-		WinExec(SysConfig.VNCPath,SW_SHOW);
+	char const *VNCPath=GetExePath(SysConfig.VNCPath,VNC_DEF_PATH);
+	if (VNCPath==NULL)
+	{
+		AfxMessageBox("VNC路径设置错误");
+		return;
+	}
+	WinExec(VNCPath,SW_SHOW);
 }
 
 void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
@@ -1192,16 +1225,13 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 {
 	static const char MODE[][10]={"","/noinput","/file","/shutdown"};
 	static const char COLOUR[][8]={"/8bpp","/16bpp","/24bpp"};
-	char const *RadminPath="radmin.exe";			//当路径为空时使用同目录下的radmin.exe
-	if (pConfig->RadminPath[0]!=0) RadminPath=pConfig->RadminPath;
 	//查看文件是否存在
-	CFileStatus fstatus;
-	if (strstr(RadminPath,".exe")==NULL || !CFile::GetStatus(RadminPath,fstatus))
+	char const *RadminPath=GetExePath(pConfig->RadminPath,RADMIN_DEF_PATH);
+	if (RadminPath==NULL)
 	{
 		AfxMessageBox("Radmin路径设置错误");
 		return;
 	}
-
 	char str1[100],str2[64];
 	//启动Radmin连接服务器
 	if (pHost->HostPort==4899)
@@ -1241,32 +1271,26 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 
 void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
-	char const *VNCPath="tvnviewer.exe";			//当路径为空时使用同目录下的tvnviewer.exe
-	if (pConfig->VNCPath[0]!=0) VNCPath=pConfig->VNCPath;
-	//查看文件是否存在
-	CFileStatus fstatus;
-	if (strstr(VNCPath,".exe")==NULL || !CFile::GetStatus(VNCPath,fstatus))
+	char const *VNCPath=GetExePath(pConfig->VNCPath,VNC_DEF_PATH);
+	if (VNCPath==NULL)
 	{
 		AfxMessageBox("VNC路径设置错误");
 		return;
 	}
-	char str1[100],str2[512];
+	char str[512];
 	//启动VNC连接服务器
-	sprintf_s(str1,sizeof(str1),"%s:%d",pHost->HostAddress,pHost->HostPort);
-/*	if (pConfig->RadminFullScreen)
-		sprintf_s(str2,sizeof(str2),"%s -FullScreen %s",VNCPath,str1);
-	else*/
-	sprintf_s(str2,sizeof(str2),"%s %s -password=%s",VNCPath,str1,pHost->Password);
-	TRACE("%s\r\n",str2);
-	WinExec(str2,SW_SHOW);
+	sprintf_s(str,sizeof(str),"%s %s:%d -password=%s",VNCPath,pHost->HostAddress,pHost->HostPort,pHost->Password);
+	TRACE("%s\r\n",str);
+//	AfxMessageBox(str);
+	WinExec(str,SW_SHOW);
 }
 
 void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
-	//查看文件是否存在
 	char str[MAX_PATH*2];
-	CFileStatus fstatus;
-	if (strstr(pConfig->SSHPath,".exe")==NULL || !CFile::GetStatus(pConfig->SSHPath,fstatus))
+	//查看文件是否存在
+	char const *SSHPath = GetExePath(pConfig->SSHPath,SSH_DEF_PATH);
+	if (SSHPath==NULL)
 	{
 		AfxMessageBox("SSH路径设置错误");
 		return;
@@ -1275,7 +1299,7 @@ void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 	char const *Format=pConfig->SSHParamFormat;
 	if (Format[0]==0)
 	{
-		CString Path=pConfig->SSHPath;
+		CString Path=SSHPath;
 		Path.MakeLower();
 		if (Path.Find("securecrt.exe")!=-1)
 			Format="/ssh2 %3@%1 /P %2 /PASSWORD %4";
@@ -1291,7 +1315,7 @@ void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 	}
 
 	//连接
-	int len=sprintf_s(str,sizeof(str),"%s ",pConfig->SSHPath);
+	int len=sprintf_s(str,sizeof(str),"%s ",SSHPath);
 	while (*Format)
 	{
 		if (*Format!='%')
@@ -1375,19 +1399,19 @@ void CRemoteManDlg::OnMenuClickedRadminCtrl(UINT Id)
 
 void CRemoteManDlg::OnMenuClickedWinScpConnent(void)
 {
+	//查看文件是否存在
+	char const *WinScpPath = GetExePath(SysConfig.WinScpPath,WINSCP_DEF_PATH);
+	if (WinScpPath==NULL)
+	{
+		MessageBox("WinScp路径设置错误");
+		return;
+	}
+	char str[MAX_PATH*2];
 	HOST_STRUCT Host;
 	if (!GetSelectHost(&Host)) return;
 	
-	//查看文件是否存在
-	char str[MAX_PATH*2];
-	CFileStatus fstatus;
-	if (strstr(SysConfig.WinScpPath,".exe")==NULL || !CFile::GetStatus(SysConfig.WinScpPath,fstatus))
-	{
-		AfxMessageBox("SSH路径设置错误");
-		return;
-	}
 	//命令行
-	sprintf_s(str,sizeof(str),"%s scp://%s:%s@%s:%d",SysConfig.WinScpPath, Host.Account, Host.Password, Host.HostAddress, Host.HostPort);
+	sprintf_s(str,sizeof(str),"%s scp://%s:%s@%s:%d",WinScpPath, Host.Account, Host.Password, Host.HostAddress, Host.HostPort);
 	TRACE("%s\r\n",str);
 	WinExec(str,SW_SHOW);
 }
@@ -2140,11 +2164,44 @@ void CRemoteManDlg::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
 }
 
 
-
-
 void CRemoteManDlg::OnDestroy()
 {
 	CDialogEx::OnDestroy();
 	::RemoveProp(m_hWnd,AfxGetApp()->m_pszExeName);
 	// TODO: 在此处添加消息处理程序代码
+}
+
+
+void CRemoteManDlg::OnMenuClickedPing(void)
+{
+	HOST_STRUCT Host;
+	if (!GetSelectHost(&Host)) return;
+
+	char str[128];
+	sprintf_s(str,sizeof(str),"ping %s -t",Host.HostAddress);
+	WinExec(str,SW_SHOW);
+
+/*
+	HOST_STRUCT Host;
+	if (!GetSelectHost(&Host)) return;
+	char FilePath[MAX_PATH+128];
+	int n=GetTempPath(MAX_PATH,FilePath);
+	if (FilePath[n-1]=='\\') n-=1;
+	sprintf_s(FilePath+n,sizeof(FilePath)-n,"\\ping_%s.bat",Host.HostAddress);
+
+	CFile file;
+	if (file.Open(FilePath,CFile::modeWrite|CFile::modeCreate))
+	{
+		file.Write("@echo off\r\n",sizeof("@echo off\r\n")-1);
+		file.Write("cls\r\n",sizeof("cls\r\n")-1);
+		char str[128];
+		n=sprintf_s(str,sizeof(str),"ping %s -t\r\n",Host.HostAddress);
+		file.Write(str,n);
+		file.Write("pause\r\n",sizeof("pause\r\n")-1);
+		file.Close();
+
+		WinExec(FilePath,SW_SHOW);
+		Sleep(1000);
+		DeleteFile(FilePath);
+	}*/
 }
