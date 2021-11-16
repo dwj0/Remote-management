@@ -101,7 +101,7 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
-char *CryptRDPPassword(char const *Password, char *OutPassword)
+char *CryptRDPPassword(char const *Password, char *OutPassword, int MaxLen)
 {
 	DATA_BLOB DataIn ;
 	DATA_BLOB DataOut ;
@@ -130,7 +130,7 @@ char *CryptRDPPassword(char const *Password, char *OutPassword)
 		int len=0;
 		for (n=0; n<DataOut.cbData; n++)
 		{
-			len+=sprintf_s(OutPassword+len,512-len,"%02X",DataOut.pbData[n]);
+			len+=sprintf_s(OutPassword+len,MaxLen-len,"%02X",DataOut.pbData[n]);
 		}
 		return OutPassword;
 	}
@@ -1084,7 +1084,7 @@ void CRemoteManDlg::OnToolbarClickedOpenVNC(void)
 
 void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
-	char RdpStr[1536],str[512];
+	char RdpStr[2048],str[768];
 	//连接模式
 	int len=sprintf_s(RdpStr,sizeof(RdpStr),"screen mode id:i:%d\r\n",pConfig->MstscWinpos==0?2:1);
 	//宽高
@@ -1167,7 +1167,7 @@ void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *
 	len+=sizeof("shell working directory:s:\r\n")-1;
 	//RDP密码加密数据
 	if (pHost->Password[0]!=0)
-		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"password 51:b:%s\r\n",CryptRDPPassword(pHost->Password,str));
+		len+=sprintf_s(RdpStr+len,sizeof(RdpStr)-len,"password 51:b:%s\r\n",CryptRDPPassword(pHost->Password,str,sizeof(str)));
 	//禁止网络质量自动检测
 	strcpy_s(RdpStr+len,sizeof(RdpStr)-len,"networkautodetect:i:0\r\n");
 	len+=sizeof("networkautodetect:i:0\r\n")-1;
