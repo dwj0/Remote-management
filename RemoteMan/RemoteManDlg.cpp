@@ -1038,9 +1038,10 @@ char const *GetExePath(char const *ConfigPath, char const *DefPath)
 
 	static char m_path[256] = { NULL };
 
+	memset(m_path, NULL, sizeof(m_path));
 	CString m_filePath = Path;
 
-	if (m_filePath.Find("...."))
+	if (m_filePath.Find("..\\") != -1)
 	{
 		CString m_FilePath;
 		GetPath(m_FilePath);
@@ -1050,8 +1051,7 @@ char const *GetExePath(char const *ConfigPath, char const *DefPath)
 			MessageBox(NULL, "路径长度过长！", "", MB_OK);
 			return NULL;
 		}
-		strcpy(m_path, m_filePath.GetString());
-
+		strcpy_s(m_path, m_filePath.GetString());
 	}
 
 	CFileStatus fstatus;
