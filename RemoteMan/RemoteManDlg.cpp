@@ -1015,14 +1015,49 @@ void CRemoteManDlg::OnToolbarClickedOpenMstsc(void)
 #define RADMIN_DEF_PATH	"radmin.exe"
 #define SSH_DEF_PATH	NULL
 #define WINSCP_DEF_PATH	NULL
+
+int GetPath(CString& Path)
+{
+	char sFileName[256] = { 0 };
+
+	if (GetModuleFileName(NULL, sFileName, 256) == 0)
+	{
+		return -1;
+	}
+	std::string sFilePath = sFileName;
+	int nLen = sFilePath.find_last_of("\\");
+	sFilePath = sFilePath.substr(0, nLen);
+	Path = sFilePath.c_str();
+	return 0;
+}
+
 char const *GetExePath(char const *ConfigPath, char const *DefPath)
 {
 	char const *Path=ConfigPath[0]==0 ? DefPath:ConfigPath;			//当路径为空时使用同目录下的tvnviewer.exe
 	//查看文件是否存在
+
+	static char m_path[256] = { NULL };
+
+	CString m_filePath = Path;
+
+	if (m_filePath.Find("...."))
+	{
+		CString m_FilePath;
+		GetPath(m_FilePath);
+		m_filePath.Replace("..", m_FilePath);
+		if (m_filePath.GetLength() > 256)
+		{
+			MessageBox(NULL, "路径长度过长！", "", MB_OK);
+			return NULL;
+		}
+		strcpy(m_path, m_filePath.GetString());
+
+	}
+
 	CFileStatus fstatus;
-	if (Path==NULL || strstr(Path,".exe")==NULL || !CFile::GetStatus(Path,fstatus))
+	if (m_path ==NULL || strstr(m_path,".exe")==NULL || !CFile::GetStatus(m_path,fstatus))
 		return NULL;
-	return Path;
+	return m_path;
 }
 
 
