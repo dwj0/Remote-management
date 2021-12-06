@@ -1020,7 +1020,7 @@ char const *GetExePath(char const *ConfigPath, char const *DefPath)
 	char const *Path=ConfigPath[0]==0 ? DefPath:ConfigPath;			//当路径为空时使用同目录下的tvnviewer.exe
 	//查看文件是否存在
 	CFileStatus fstatus;
-	if (strstr(Path,".exe")==NULL || !CFile::GetStatus(Path,fstatus))
+	if (Path==NULL || strstr(Path,".exe")==NULL || !CFile::GetStatus(Path,fstatus))
 		return NULL;
 	return Path;
 }
