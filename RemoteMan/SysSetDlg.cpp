@@ -27,6 +27,7 @@ CSysSetDlg::CSysSetDlg(CONFIG_STRUCT const *pConfig, CWnd* pParent/* = NULL*/)
 	, m_SSHFormat(pConfig->SSHParamFormat)
 	, m_TimeOut(pConfig->CheckOnlineTimeOut)
 	, m_SrcPassword("******")
+	, m_VNCType(pConfig->VNCType)
 {
 
 }
@@ -51,6 +52,7 @@ void CSysSetDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_VNC_PATH, m_VNCPath);
 	DDX_Text(pDX, IDC_EDIT_SSH_FROMAT, m_SSHFormat);
 	DDX_Text(pDX, IDC_EDIT_WINSCP_PATH, m_WinScpPath);
+	DDX_CBIndex(pDX, IDC_COMBO_VNCTYPE, m_VNCType);
 }
 
 
@@ -78,7 +80,7 @@ BOOL CSysSetDlg::OnInitDialog()
 
 	//形式是这样: "C:\<NULL>D:\<NULL>E:\<NULL><NULL>" 
 	GetLogicalDriveStrings(sizeof(Buf),Buf);
-	for (char *s=Buf; *s!=0 && n<sizeof(DriveCheck)/sizeof(DriveCheck[0]); s+=4)
+	for (char *s = Buf; *s != 0 && n < sizeof(DriveCheck) / sizeof(DriveCheck[0]); s += 4)
 	{
 		s[2]=0;
 		Rect.right=Rect.left+MAX_CHECKBOX_WIDTH;

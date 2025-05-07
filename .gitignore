@@ -23,6 +23,8 @@ Thumbs.db
 # VC2010
 Release/
 Debug/
+EXE文件/
+.vs/
 *.sdf
 *.opensdf
 *.aps
@@ -31,4 +33,4 @@ Debug/
 # 数据库文件
 *.db
 *.rar
-
+*.bak

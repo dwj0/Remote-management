@@ -5,7 +5,7 @@
 #pragma once
 #include "afxwin.h"
 #include "afxcmn.h"
-#include "sqlite3.h"
+#include "../sqlite3/sqlite3.h"
 #include "SysSetDlg.h"
 #include "AddGroupDlg.h"
 #include "AddHostDlg.h"
@@ -18,11 +18,13 @@ struct GROUP_STRUCT
 	int		Parent;
 };
 
+enum { VNC_TYPE_REALVNC = 0, VNC_TYPE_TIGHTVNC };
+
 // CRemoteManDlg 对话框
 class CRemoteManDlg : public CDialogEx
 {
 //工具栏ID号
-enum {IDC_TOOLER_OPENRADMIN=10001,IDC_TOOLER_OPENMSTSC, IDC_TOOLER_OPENSSH, IDC_TOOLER_OPENVNC, IDC_TOOLER_SET};
+	enum { IDC_TOOLER_OPENRADMIN = 10001, IDC_TOOLER_OPENMSTSC, IDC_TOOLER_OPENSSH, IDC_TOOLER_OPENVNC, IDC_TOOLER_SET };
 // 构造
 public:
 	CRemoteManDlg(CWnd* pParent = NULL);	// 标准构造函数
@@ -113,7 +115,6 @@ public:
 	bool GetSelectHost(HOST_STRUCT *pHost);
 	bool bScanExit;
 	void OnToolbarClickedOpenVNC(void);
-	void OnMenuClickedOpenSSH(UINT id);
 	afx_msg void OnDestroy();
 	void OnMenuClickedPing(void);
 };

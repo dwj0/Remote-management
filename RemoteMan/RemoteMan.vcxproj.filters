@@ -158,9 +158,6 @@
     <ClCompile Include="DimEdit.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="sqlite3.c">
-      <Filter>源文件</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RemoteMan.rc">
@@ -169,5 +166,10 @@
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="res\XPStyle.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\vncviewer.ico">
+      <Filter>资源文件</Filter>
+    </Image>
   </ItemGroup>
 </Project>

@@ -14,6 +14,7 @@ struct CONFIG_STRUCT{
 	char WinScpPath[256];				//WinScp的路径
 	char VNCPath[256];					//VNC路径，如果为空，则为同目录下的VNC.exe
 	char SSHParamFormat[64];			//SSH命令行的参数格式，%1:地址 %2:端口 %3:帐户 %4:密码,如果为空，根据文件名自动选择
+	int  VNCType;						//VNC类型，0：RealVNC, 1：TightVNC
 	int  CheckOnlineTimeOut;			//在线检测超时时间ms
 	bool MstscConsole;					//远程桌面使用Console连接
 	bool MstscUseDrive;					//是否连接本地分区
@@ -66,4 +67,5 @@ public:
 	CString m_SSHFormat;
 	afx_msg void OnBnClickedBtnSshFormatHelp();
 	CString m_WinScpPath;
+	int m_VNCType;
 };

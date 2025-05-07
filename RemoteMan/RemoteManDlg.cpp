@@ -30,6 +30,7 @@ SSHPath char(256),\r\n\
 WinScpPath char(256),\r\n\
 VNCPath char(256),\r\n\
 SSHParamFormat char(64),\r\n\
+VNCType boolean,\r\n\
 CheckOnlineTimeOut int,\r\n\
 MstscConsole boolean,\r\n\
 MstscUseDrive boolean,\r\n\
@@ -62,7 +63,7 @@ Account char(32) not null,\r\n\
 Password char(66) not null,\r\n\
 HostReadme char(256)\r\n\
 );\r\n\
-insert into %sConfigTab values(0, 2, 0, true, '', '', '', '', '','', 500, false, true,'',false,0,0,true, true, true, 0, true, 1);\r\n\
+insert into %sConfigTab values(0, 2, 0, true, '', '', '', '', '','', 0,500, false, true,'',false,0,0,true, true, true, 0, true, 1);\r\n\
 COMMIT;\r\n\
 ";
 
@@ -237,7 +238,7 @@ static int ReadConfigCallback(void* para, int n_column, char** column_value, cha
 	CONFIG_STRUCT *pConfig = (CONFIG_STRUCT*)para;
 	pConfig->DatabaseVer=-1;
 
-	for (int i=0; i<n_column; i++)
+	for (int i = 0; i < n_column; i++)
 	{
 		if (column_value[i]==NULL) column_value[i]="";
 		if (strcmp(column_name[i],"DatabaseVer")==0)
@@ -258,6 +259,8 @@ static int ReadConfigCallback(void* para, int n_column, char** column_value, cha
 			strcpy_s(pConfig->VNCPath,sizeof(pConfig->VNCPath),column_value[i]);
 		else if (strcmp(column_name[i],"SSHParamFormat")==0)
 			strcpy_s(pConfig->SSHParamFormat,sizeof(pConfig->SSHParamFormat),column_value[i]);
+		else if (strcmp(column_name[i], "VNCType") == 0)
+			pConfig->VNCType = atoi(column_value[i]);
 		else if (strcmp(column_name[i],"CheckOnlineTimeOut")==0)
 			pConfig->CheckOnlineTimeOut =atoi(column_value[i]);
 		else if (strcmp(column_name[i],"MstscConsole")==0)
@@ -390,6 +393,16 @@ void CRemoteManDlg::DataBaseConversion(int Ver)
 		TRACE("%s\r\n",sqlstr);
 		rc=sqlite3_exec(m_pDB,sqlstr,NULL,NULL,NULL);
 	}
+	//当DatabaseVer=2时，缺少VNCType列
+	if (SysConfig.DatabaseVer == 2)
+	{
+		SysConfig.DatabaseVer = 3;
+		//添加列
+		char sqlstr[1024] = "alter table ConfigTab add column VNCType boolean;"
+			"update ConfigTab set DatabaseVer=3,VNCType=1 where id=0;";
+		TRACE("%s\r\n", sqlstr);
+		rc = sqlite3_exec(m_pDB, sqlstr, NULL, NULL, NULL);
+	}
 }
 
 CRemoteManDlg::CRemoteManDlg(CWnd* pParent /*=NULL*/)
@@ -471,7 +484,6 @@ BEGIN_MESSAGE_MAP(CRemoteManDlg, CDialogEx)
 	ON_BN_CLICKED(ID_MENU_EXPORTGROUP,&CRemoteManDlg::OnMenuClickedExportGroup)
 	ON_BN_CLICKED(ID_MENU_IMPORTGROUP,&CRemoteManDlg::OnMenuClickedImportGroup)
 	ON_BN_CLICKED(ID_MENU_PING,&CRemoteManDlg::OnMenuClickedPing)
-	ON_COMMAND_RANGE(ID_MENU_OPENSSH,ID_MENU_OPEN_WINSCP,&CRemoteManDlg::OnMenuClickedOpenSSH)
 	ON_BN_CLICKED(IDC_TOOLER_OPENRADMIN, &CRemoteManDlg::OnToolbarClickedOpenRadmin)
 	ON_BN_CLICKED(IDC_TOOLER_OPENMSTSC, &CRemoteManDlg::OnToolbarClickedOpenMstsc)
 	ON_BN_CLICKED(IDC_TOOLER_OPENSSH, &CRemoteManDlg::OnToolbarClickedOpenSSH)
@@ -518,7 +530,7 @@ void CRemoteManDlg::InitToolBar(void)
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDR_MAINFRAME));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_RADMIN));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_SSH));
-	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_ICON_VNC));
+	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(SysConfig.VNCType == VNC_TYPE_TIGHTVNC ? IDI_ICON_VNC : IDI_REALVNC));
 	m_ToolbarImageList.Add(AfxGetApp()->LoadIcon(IDI_SET));
 
 	UINT array[14]={ID_MENU_ADDGROUP,ID_MENU_DELGROUP,ID_SEPARATOR,
@@ -544,6 +556,16 @@ void CRemoteManDlg::InitToolBar(void)
 
 	m_ToolBar.MoveWindow(CRect(0,-1,820,62));	//移动工具栏在父窗口的位置
 	m_ToolBar.ShowWindow(SW_SHOW);				//显示工具栏
+
+	//使能下拉箭头
+	//DWORD dwExStyle = TBSTYLE_EX_DRAWDDARROWS;
+	//m_ToolBar.GetToolBarCtrl().SendMessage(TB_SETEXTENDEDSTYLE, 0, (LPARAM)dwExStyle);
+	//DWORD dwStyle = m_ToolBar.GetButtonStyle(m_ToolBar.CommandToIndex(IDC_TOOLER_OPENSSH));
+	//dwStyle |= TBSTYLE_DROPDOWN;
+	//m_ToolBar.SetButtonStyle(m_ToolBar.CommandToIndex(IDC_TOOLER_OPENSSH), dwStyle);
+	//dwStyle = m_ToolBar.GetButtonStyle(m_ToolBar.CommandToIndex(IDC_TOOLER_OPENVNC));
+	//dwStyle |= TBSTYLE_DROPDOWN;
+	//m_ToolBar.SetButtonStyle(m_ToolBar.CommandToIndex(IDC_TOOLER_OPENVNC), dwStyle);
 //	RepositionBars(AFX_IDW_CONTROLBAR_FIRST,AFX_IDW_CONTROLBAR_LAST,0);
 }
 
@@ -592,7 +614,7 @@ BOOL CRemoteManDlg::OnInitDialog()
 	m_ImageList.Add(AfxGetApp()->LoadIcon(IDR_MAINFRAME));
 	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_RADMIN));
 	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_SSH));
-	m_ImageList.Add(AfxGetApp()->LoadIcon(IDI_ICON_VNC));
+	m_ImageList.Add(AfxGetApp()->LoadIcon(SysConfig.VNCType == VNC_TYPE_TIGHTVNC ? IDI_ICON_VNC : IDI_REALVNC));
 	m_Tree.SetImageList(&m_ImageList,LVSIL_NORMAL);
 
 	m_List.SetExtendedStyle(LVS_EX_FULLROWSELECT|LVS_EX_GRIDLINES);
@@ -708,10 +730,11 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 		SysConfig.MstscThemes=Dlg.m_MstThemes!=0;
 		SysConfig.RadminColor=Dlg.m_RadminColor;
 		SysConfig.CheckOnlineTimeOut=Dlg.m_TimeOut;
+		SysConfig.VNCType = Dlg.m_VNCType;
 		
 		char sqlstr[1024];
 		int n=sprintf_s(sqlstr,sizeof(sqlstr),"update ConfigTab set ParentShowHost=%s,RadminPath='%s',SSHPath='%s',WinScpPath='%s',VNCPath='%s',"
-											  "SSHParamFormat='%s',CheckOnlineTimeOut=%d,MstscLocalDrive='%s',MstscColor=%d,"
+											  "SSHParamFormat='%s',VNCType=%d,CheckOnlineTimeOut=%d,MstscLocalDrive='%s',MstscColor=%d,"
 											  "MstscConsole=%s,MstscFontSmooth=%s,MstscThemes=%s,RadminColor=%d where id=0;",
 			SysConfig.ParentShowHost ? "true":"false",
 			SysConfig.RadminPath,
@@ -719,6 +742,7 @@ void CRemoteManDlg::OnToolbarClickedSysSet(void)
 			SysConfig.WinScpPath,
 			SysConfig.VNCPath,
 			SysConfig.SSHParamFormat,
+			SysConfig.VNCType,
 			SysConfig.CheckOnlineTimeOut,
 			SysConfig.MstscLocalDrive,
 			SysConfig.MstscColor,
@@ -1011,10 +1035,11 @@ void CRemoteManDlg::OnToolbarClickedOpenMstsc(void)
 	WinExec(szBuffer,SW_SHOW);
 }
 
-#define VNC_DEF_PATH	"TightVnc\\tvnviewer.exe"
-#define RADMIN_DEF_PATH	"radmin.exe"
-#define SSH_DEF_PATH	NULL
-#define WINSCP_DEF_PATH	NULL
+#define TIGHTVNC_DEF_PATH	"TightVnc\\tvnviewer.exe"
+#define REALVNC_DEF_PATH	"RealVNC\\vncviewer.exe"
+#define RADMIN_DEF_PATH		"radmin.exe"
+#define SSH_DEF_PATH		NULL
+#define WINSCP_DEF_PATH		NULL
 char const *GetExePath(char const *ConfigPath, char const *DefPath)
 {
 	char const *Path=ConfigPath[0]==0 ? DefPath:ConfigPath;			//当路径为空时使用同目录下的tvnviewer.exe
@@ -1037,30 +1062,6 @@ void CRemoteManDlg::OnToolbarClickedOpenRadmin(void)
 	WinExec(Path,SW_SHOW);
 }
 
-void CRemoteManDlg::OnMenuClickedOpenSSH(UINT id)
-{
-	char const *path;
-	if (id==ID_MENU_OPENSSH)
-	{
-		path = GetExePath(SysConfig.SSHPath,SSH_DEF_PATH);
-		if (path==NULL)
-		{
-			MessageBox("SSH路径设置错误");
-			return;
-		}
-	}
-	else
-	{
-		path = GetExePath(SysConfig.WinScpPath,SSH_DEF_PATH);
-		if (path==NULL)
-		{
-			MessageBox("WinScp路径设置错误");
-			return;
-		}
-	}
-	WinExec(path,SW_SHOW);
-}
-
 void CRemoteManDlg::OnToolbarClickedOpenSSH(void)
 {
 	CMenu Menu;
@@ -1068,18 +1069,55 @@ void CRemoteManDlg::OnToolbarClickedOpenSSH(void)
 	CMenu *pSubMenu=Menu.GetSubMenu(7);
 	CPoint point;
 	GetCursorPos(&point);
-	pSubMenu->TrackPopupMenu(TPM_LEFTALIGN|TPM_LEFTBUTTON|TPM_VERTICAL,point.x,point.y,this);
+	int id = pSubMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_VERTICAL | TPM_RETURNCMD, point.x, point.y, this);
+
+	char const *path = NULL;
+	if (id == ID_MENU_OPENSSH)
+	{
+		path = GetExePath(SysConfig.SSHPath, SSH_DEF_PATH);
+		if (path == NULL)
+		{
+			MessageBox("SSH路径设置错误");
+			return;
+		}
+	}
+	else if (id == ID_MENU_OPEN_WINSCP)
+	{
+		path = GetExePath(SysConfig.WinScpPath, SSH_DEF_PATH);
+		if (path == NULL)
+		{
+			MessageBox("WinScp路径设置错误");
+			return;
+		}
+	}
+	if (path != NULL) WinExec(path, SW_SHOW);
 }
 
 void CRemoteManDlg::OnToolbarClickedOpenVNC(void)
 {
-	char const *VNCPath=GetExePath(SysConfig.VNCPath,VNC_DEF_PATH);
+	char const *VNCPath = GetExePath(SysConfig.VNCPath, SysConfig.VNCType == VNC_TYPE_REALVNC ? REALVNC_DEF_PATH : TIGHTVNC_DEF_PATH);
 	if (VNCPath==NULL)
 	{
 		AfxMessageBox("VNC路径设置错误");
 		return;
 	}
-	WinExec(VNCPath,SW_SHOW);
+
+	CMenu Menu;
+	Menu.LoadMenu(IDR_MENU_RCLICK);
+	CMenu *pSubMenu = Menu.GetSubMenu(8);
+	CPoint point;
+	GetCursorPos(&point);
+	int id = pSubMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_VERTICAL | TPM_RETURNCMD, point.x, point.y, this);
+
+	if (id == ID_MENU_OPEN_VNCVIEW)
+	{
+		WinExec(VNCPath, SW_SHOW);
+	}
+	else if (id == ID_MENU_OPEN_VNCLISTEN)
+	{
+		ShellExecute(NULL, "open", VNCPath, "-listen", NULL, SW_SHOWNORMAL);
+	}
+
 }
 
 void CRemoteManDlg::MstscConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
@@ -1247,18 +1285,18 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 	sprintf_s(str2,sizeof(str2),"Radmin 安全性: %s",pHost->HostAddress);	//Radmin3.4的窗口名称
 	//查找Radmin启动窗口
 	HWND hWnd;
-	clock_t t2,t1=clock();
-	for (t2=t1;t2-t1<8000;t2=clock())
+	clock_t t2, t1 = clock();
+	for (t2 = t1; t2 - t1 < 8000; t2 = clock())
 	{
 		Sleep(1);
-		hWnd=FindWindow(NULL,str1);
-		if (hWnd!=NULL)
+		hWnd = FindWindow(NULL, str1);
+		if (hWnd != NULL)
 			break;
-		hWnd=FindWindow(NULL,str2);
-		if (hWnd!=NULL)
+		hWnd = FindWindow(NULL, str2);
+		if (hWnd != NULL)
 			break;
 	}
-	if (hWnd==NULL)	return;
+	if (hWnd == NULL)	return;
 	//填写信息并发送
 	HWND UserWnd=::GetDlgItem(hWnd,0x7ff);
 	HWND PasswordWnd=::GetDlgItem(hWnd,0x800);
@@ -1269,20 +1307,126 @@ void RadminConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig, int C
 	::PostMessage(hWnd,WM_COMMAND,0x78,0);
 }
 
+struct EnumFindStr
+{
+	TCHAR const *str;
+	UINT id;
+	BOOL useNext;
+	HWND hwnd;
+};
+
+BOOL CALLBACK EnumWindowFunc(HWND hwnd, LPARAM lvoid)
+{
+	EnumFindStr *pfs = (EnumFindStr*)lvoid;
+	TCHAR windowtext[256];
+	::GetWindowText(hwnd, windowtext, 256);
+	TRACE(_T("hwnd=%08x\r\n"), hwnd);
+	if (pfs->useNext == 2)
+	{
+		pfs->hwnd = hwnd;
+		return 0;
+	}
+	else if (_tcscmp(windowtext, pfs->str) == 0)
+	{
+		if (pfs->useNext == 0)
+		{
+			pfs->hwnd = hwnd;
+			return 0;
+		}
+		else
+			pfs->useNext = 2;
+	}
+	return 1;
+}
+
 void VNCConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
 {
-	char const *VNCPath=GetExePath(pConfig->VNCPath,VNC_DEF_PATH);
+	char const *VNCPath = GetExePath(pConfig->VNCPath, pConfig->VNCType == VNC_TYPE_REALVNC ? REALVNC_DEF_PATH : TIGHTVNC_DEF_PATH);
 	if (VNCPath==NULL)
 	{
 		AfxMessageBox("VNC路径设置错误");
 		return;
 	}
-	char str[512];
+	char str[512], ConnectWndNameStr[256], hoststr[128];
+	sprintf_s(hoststr, 128, "%s:%d", pHost->HostAddress, pHost->HostPort);
 	//启动VNC连接服务器
-	sprintf_s(str,sizeof(str),"%s %s:%d -password=%s",VNCPath,pHost->HostAddress,pHost->HostPort,pHost->Password);
-	TRACE("%s\r\n",str);
-//	AfxMessageBox(str);
-	WinExec(str,SW_SHOW);
+	if (pConfig->VNCType == VNC_TYPE_TIGHTVNC)
+	{
+		sprintf_s(str, sizeof(str), "%s %s -password=%s", VNCPath, hoststr, pHost->Password);
+		TRACE("%s\r\n",str);
+	//	AfxMessageBox(str);
+		WinExec(str,SW_SHOW);
+	}
+	else
+	{
+		sprintf_s(str, sizeof(str), "%s %s", VNCPath, hoststr);
+		TRACE("%s\r\n", str);
+		ShellExecute(NULL, _T("open"), VNCPath, hoststr, NULL, SW_SHOWNORMAL);
+		//查找连接窗口
+		sprintf_s(ConnectWndNameStr, sizeof(ConnectWndNameStr), "%s - RealVNC Viewer", hoststr);	//Radmin2.2的窗口名称
+		HWND hMainWnd;
+		clock_t t2, t1 = clock();
+		for (t2 = t1; t2 - t1 < 2000; t2 = clock())
+		{
+			Sleep(1);
+			hMainWnd = ::FindWindow(NULL, ConnectWndNameStr);
+			if (hMainWnd != NULL)
+			{
+				TRACE(_T("主连接窗口句柄：%08X\r\n"), hMainWnd);
+				break;
+			}
+		}
+		//主连接窗口出现后，查找身份验证窗口，直到主连接窗口被关闭
+		while (hMainWnd != NULL)
+		{
+			//身份冲突窗口
+			HWND hWnd = ::FindWindow(NULL, _T("Identity Check"));
+			if (hWnd != NULL)
+			{
+				TRACE(_T("身份冲突窗口句柄：%08X\r\n"), hWnd);
+				Sleep(50);
+				//点击Continue
+				EnumFindStr fs = { _T("Continue"), 0x119, 0, NULL };
+				::EnumChildWindows(hWnd, EnumWindowFunc, (LPARAM)&fs);
+				if (fs.hwnd != NULL)
+				{
+					TRACE(_T("Continue按钮句柄：%08X\r\n"), fs.hwnd);
+					::SendMessage(fs.hwnd, WM_LBUTTONDOWN, 0, MAKELONG(10, 10));
+					::SendMessage(fs.hwnd, WM_LBUTTONUP, 0, MAKELONG(10, 10));
+					Sleep(100);
+				}
+			}
+			//身份验证窗口
+			hWnd = ::FindWindow(NULL, _T("身份验证"));		//身份冲突窗口
+			if (hWnd != NULL)
+			{
+				TRACE(_T("身份验证窗口句柄：%08X\r\n"), hWnd);
+				Sleep(50);
+				//输入用户名、密码，点击OK
+				EnumFindStr fsuser = { _T("用户名:"), 0, 1, NULL };
+				::EnumChildWindows(hWnd, EnumWindowFunc, (LPARAM)&fsuser);
+				EnumFindStr fspass = { _T("密码:"), 0, 1, NULL };
+				::EnumChildWindows(hWnd, EnumWindowFunc, (LPARAM)&fspass);
+				EnumFindStr fsok = { _T("OK"), 0, 0, NULL };
+				::EnumChildWindows(hWnd, EnumWindowFunc, (LPARAM)&fsok);
+				TRACE(_T("用户名控件句柄：%08X，密码控件句柄：%08X，OK按钮句柄：%08X\r\n"), fsuser.hwnd, fspass.hwnd, fsok.hwnd);
+				if (fsuser.hwnd != NULL && fspass.hwnd != NULL && fsok.hwnd != NULL)
+				{
+					LONG style = GetWindowLong(fsuser.hwnd, GWL_STYLE);
+					if (!(style & WS_DISABLED) && pHost->Account[0] != 0)
+						::SendMessage(fsuser.hwnd, WM_SETTEXT, 0, (LPARAM)pHost->Account);
+					::SendMessage(fspass.hwnd, WM_SETTEXT, 0, (LPARAM)pHost->Password);
+					::SendMessage(fsok.hwnd, WM_LBUTTONDOWN, 0, MAKELONG(10, 10));
+					::SendMessage(fsok.hwnd, WM_LBUTTONUP, 0, MAKELONG(10, 10));
+					break;
+				}
+			}
+			//监控主连接窗口有没有退出
+			Sleep(10);
+			if (!::IsWindow(hMainWnd))	hMainWnd = NULL;
+		}
+		TRACE(_T("结束\r\n"));
+	}
 }
 
 void SSHConnent(HOST_STRUCT const *pHost, CONFIG_STRUCT const *pConfig)
@@ -1440,7 +1584,7 @@ void CRemoteManDlg::OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult)
 	HTREEITEM hParentItem=m_Tree.GetParentItem(pTVDispInfo->item.hItem);
 	int ParentId=hParentItem==0 ? 0:m_Tree.GetItemData(hParentItem);
 	//先检查此名称是否存在
-	int rc=sprintf_s(sqlstr,sizeof(sqlstr),"select count() from GroupTab where ParentId=%d and Name='%s' and Id!=%d;",ParentId,Name,Id);
+	int rc = sprintf_s(sqlstr, sizeof(sqlstr), "select count() from GroupTab where ParentId=%d and Name='%s' and Id!=%d;", ParentId, (char const*)Name, Id);
 	TRACE("%s\r\n",sqlstr);
 	rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), ReadIntCallback, &Cnt, NULL);
 	if (Cnt!=0) 
@@ -1449,7 +1593,7 @@ void CRemoteManDlg::OnTvnEndlabeleditTree1(NMHDR *pNMHDR, LRESULT *pResult)
 		return;
 	}
 	//更新数据库
-	sprintf_s(sqlstr,sizeof(sqlstr),"update GroupTab set Name='%s' where Id=%d", Name, Id);
+	sprintf_s(sqlstr,sizeof(sqlstr),"update GroupTab set Name='%s' where Id=%d", (char const*)Name, Id);
 	TRACE("%s\r\n",sqlstr);
 	rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 
@@ -1815,7 +1959,7 @@ void CRemoteManDlg::OnMenuClickedExportGroup(void)
 	if (fdlg.DoModal()!=IDOK) return;
 	//附加数据库
 	char sqlstr[1536];
-	sprintf_s(sqlstr,sizeof(sqlstr),"attach database '%s' as 'export';",fdlg.GetPathName());
+	sprintf_s(sqlstr, sizeof(sqlstr), "attach database '%s' as 'export';", (char const*)fdlg.GetPathName());
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 	if (rc!=0)
@@ -1950,7 +2094,7 @@ void CRemoteManDlg::OnMenuClickedImportGroup(void)
 	if (fdlg.DoModal()!=IDOK) return;
 	if (fdlg.m_GroupSel==0) hItem=TVI_ROOT;
 	//附加数据库
-	sprintf_s(sqlstr,sizeof(sqlstr),"attach database '%s' as 'export';",fdlg.GetPathName());
+	sprintf_s(sqlstr, sizeof(sqlstr), "attach database '%s' as 'export';", (char const*)fdlg.GetPathName());
 	TRACE("%s\r\n",sqlstr);
 	int rc = sqlite3_exec(m_pDB, CodeConverter::AsciiToUtf8(sqlstr).c_str(), NULL, NULL, NULL);
 	if (rc!=0)
@@ -1978,12 +2122,22 @@ static bool ScanFunction(char const *Address, int Port, int TimeOut)
 {
 	SOCKET m_socket=socket(AF_INET,SOCK_STREAM,0);
 	sockaddr_in serveraddr;
-	serveraddr.sin_family=AF_INET;
+
+	struct addrinfo *presult = NULL;
+	struct addrinfo *ptr = NULL;
+	struct addrinfo hints;
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	int resval = getaddrinfo(Address, "", &hints, &presult);
+	if (resval != 0 || presult->ai_family != AF_INET)
+	{
+		freeaddrinfo(presult);
+		return FALSE;
+	}
+	serveraddr = *(struct sockaddr_in *) ptr->ai_addr;
 	serveraddr.sin_port=htons(Port);
-	hostent *host=gethostbyname(Address);
-	if (host==NULL) return false;
-	char *ip=inet_ntoa(*(struct in_addr*)host->h_addr_list[0]);
-	serveraddr.sin_addr.S_un.S_addr=inet_addr(ip);
 	if (serveraddr.sin_addr.S_un.S_addr==INADDR_NONE)
 		return FALSE;
 
@@ -2001,7 +2155,7 @@ static bool ScanFunction(char const *Address, int Port, int TimeOut)
 	timeout.tv_usec =TimeOut*1000;	//超时 微秒
 	ret = select(0, 0, &r, 0, &timeout);
 	::closesocket(m_socket);
-	return ret>0;
+	return ret > 0;
 }
 
 static DWORD CALLBACK ScanOnlineThread(LPVOID lp)
